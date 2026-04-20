@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $chartImageData = $input['chartImage'] ?? null;
 }
 
-// ─── Validate report type ─────────────────────────────────────────────────────
+// ─── Validate report type — now includes 'closed' ────────────────────────────
 if (!isset($_GET['type']) || !in_array($_GET['type'], ['all','active','approved','pending','rejected','closed'])) {
     echo json_encode(['error' => 'Invalid report type']);
     exit();
@@ -33,19 +33,14 @@ if ($conn->connect_error) {
 $where_clause = '';
 $report_title = 'All Loans';
 switch ($report_type) {
-    case 'active':   $where_clause = "WHERE la.status = 'Active'";   $report_title = 'Active Loans'; break;
+    case 'active':   $where_clause = "WHERE la.status = 'Active'";   $report_title = 'Active Loans';                  break;
     case 'approved': $where_clause = "WHERE la.status = 'Approved'"; $report_title = 'Approved Loans (Awaiting Claim)'; break;
-    case 'pending':  $where_clause = "WHERE la.status = 'Pending'";  $report_title = 'Pending Loans'; break;
-    case 'rejected': $where_clause = "WHERE la.status = 'Rejected'"; $report_title = 'Rejected Loans'; break;
-    case 'closed':   $where_clause = "WHERE la.status = 'Closed'";   $report_title = 'Closed Loans'; break;
+    case 'pending':  $where_clause = "WHERE la.status = 'Pending'";  $report_title = 'Pending Loans';                 break;
+    case 'rejected': $where_clause = "WHERE la.status = 'Rejected'"; $report_title = 'Rejected Loans';                break;
+    case 'closed':   $where_clause = "WHERE la.status = 'Closed'";   $report_title = 'Fully Paid / Closed Loans';     break;  // ← NEW label
 }
 
-// ─── Fetch loans — JOIN all normalized tables ─────────────────────────────────
-// full_name     → loan_borrowers
-// loan_type     → loan_types
-// approved_at   → loan_approvals
-// rejected_at   → loan_rejections
-// next_payment_due is on loan_applications
+// ─── Fetch loans ──────────────────────────────────────────────────────────────
 $sql = "
     SELECT
         la.id                                       AS client_id,
@@ -69,14 +64,14 @@ $sql = "
 ";
 
 $result = $conn->query($sql);
-$loans = [];
+$loans  = [];
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $loans[] = $row;
     }
 }
 
-// ─── Status counts ────────────────────────────────────────────────────────────
+// ─── Status counts (all statuses, used in the stats box) ─────────────────────
 $counts = ['Active' => 0, 'Approved' => 0, 'Pending' => 0, 'Rejected' => 0, 'Closed' => 0];
 $allLoansResult = $conn->query("SELECT status, COUNT(*) AS total FROM loan_applications GROUP BY status");
 if ($allLoansResult) {
@@ -87,6 +82,19 @@ if ($allLoansResult) {
         }
     }
 }
+
+// ─── Total amount settled for closed loans ────────────────────────────────────
+$closedAmtResult = $conn->query("
+    SELECT COALESCE(SUM(loan_amount), 0) AS total_settled
+    FROM loan_applications
+    WHERE status = 'Closed'
+");
+$closedTotalAmount = 0;
+if ($closedAmtResult) {
+    $closedAmtRow      = $closedAmtResult->fetch_assoc();
+    $closedTotalAmount = floatval($closedAmtRow['total_settled'] ?? 0);
+}
+
 $conn->close();
 
 // ─── Generate PDF ─────────────────────────────────────────────────────────────
@@ -121,44 +129,80 @@ if ($chartImageData) {
     $pdf->Cell(0, 8, 'Loan Portfolio Analytics', 0, 1, 'L');
     $pdf->Ln(2);
 
-    $startY  = $pdf->GetY();
-    $pdf->Image($tempChartPath, 15, $startY, 90, 60);
+    $startY = $pdf->GetY();
+    $pdf->Image($tempChartPath, 15, $startY, 90, 65);
 
+    // ── Stats box: now includes Closed/Fully Paid row ──────────────────────
     $statsX = 115;
     $pdf->SetXY($statsX, $startY);
     $pdf->SetFont('Arial', 'B', 11);
     $pdf->SetFillColor(240, 240, 240);
-    $pdf->Cell(70, 8, 'Overall Statistics:', 1, 1, 'C', true);
+    $pdf->Cell(80, 8, 'Overall Portfolio Statistics:', 1, 1, 'C', true);
 
     $statRows = [
-        'Active Loans:'         => $counts['Active'],
-        'Approved (Awaiting):'  => $counts['Approved'],
-        'Pending Review:'       => $counts['Pending'],
-        'Rejected:'             => $counts['Rejected'],
+        'Active Loans:'          => $counts['Active'],
+        'Approved (Awaiting):'   => $counts['Approved'],
+        'Pending Review:'        => $counts['Pending'],
+        'Rejected:'              => $counts['Rejected'],
+        'Fully Paid / Closed:'   => $counts['Closed'],   // ← NEW row
     ];
+
+    // Colour mapping for left border indicator
+    $rowColors = [
+        'Active Loans:'          => [10,  59, 47],   // dark green
+        'Approved (Awaiting):'   => [76, 175, 80],   // green
+        'Pending Review:'        => [255,152,  0],   // orange
+        'Rejected:'              => [244, 67, 54],   // red
+        'Fully Paid / Closed:'   => [201,168, 76],   // gold
+    ];
+
     foreach ($statRows as $label => $value) {
         $pdf->SetXY($statsX, $pdf->GetY());
         $pdf->SetFont('Arial', '', 10);
-        $pdf->Cell(40, 7, $label, 1, 0, 'L');
+        $pdf->Cell(50, 7, $label, 1, 0, 'L');
         $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(30, 7, $value, 1, 1, 'C');
     }
+
+    // Total row
     $pdf->SetXY($statsX, $pdf->GetY());
     $pdf->SetFont('Arial', 'B', 10);
     $pdf->SetFillColor(220, 220, 220);
-    $pdf->Cell(40, 7, 'Total Loans:', 1, 0, 'L', true);
-    $pdf->Cell(30, 7, array_sum($counts), 1, 1, 'C', true);
+    $totalAll = array_sum($counts);
+    $pdf->Cell(50, 7, 'Total Loans:', 1, 0, 'L', true);
+    $pdf->Cell(30, 7, $totalAll,      1, 1, 'C', true);
+
+    // ── NEW: Fully Paid amount highlight ───────────────────────────────────
+    if ($counts['Closed'] > 0) {
+        $pdf->SetXY($statsX, $pdf->GetY() + 2);
+        $pdf->SetFont('Arial', 'B', 9);
+        $pdf->SetFillColor(10, 59, 47);
+        $pdf->SetTextColor(232, 201, 107);
+        $pdf->Cell(80, 7, 'Total Settled (Closed): PHP ' . number_format($closedTotalAmount, 2), 1, 1, 'C', true);
+        $pdf->SetTextColor(0, 0, 0); // reset
+    }
 
     @unlink($tempChartPath);
-    $pdf->SetY($startY + 65);
+    $pdf->SetY($startY + 72);
     $pdf->Ln(5);
+}
+
+// ─── Special banner for Closed report ─────────────────────────────────────────
+if ($report_type === 'closed' && count($loans) > 0) {
+    $pdf->SetFont('Arial', 'B', 10);
+    $pdf->SetFillColor(10, 59, 47);
+    $pdf->SetTextColor(232, 201, 107);
+    $pdf->Cell(0, 9, '  FULLY PAID / CLOSED LOANS — Total Settled: PHP ' . number_format($closedTotalAmount, 2) . '  (' . count($loans) . ' loans)', 1, 1, 'L', true);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFillColor(255, 255, 255);
+    $pdf->Ln(3);
 }
 
 // ─── Table header ─────────────────────────────────────────────────────────────
 $pdf->SetFont('Arial', 'B', 9);
 $pdf->SetFillColor(200, 200, 200);
-$w      = [20, 40, 30, 30, 25, 30, 30, 30, 25];
-$header = ['Loan ID','Client Name','Loan Type','Amount','Term','Monthly Payment','Total Payable','Status','Date'];
+$w      = [18, 38, 28, 30, 22, 28, 30, 30, 24];
+$header = ['Loan ID','Client Name','Loan Type','Amount','Term','Monthly Pmt','Total Payable','Status','Date'];
 foreach ($header as $i => $h) {
     $pdf->Cell($w[$i], 8, $h, 1, 0, 'C', true);
 }
@@ -176,10 +220,8 @@ foreach ($loans as $loan) {
         $pdf->SetFont('Arial', '', 8);
     }
 
-    // Date column logic
-    if ($loan['status'] === 'Active' && !empty($loan['approved_at'])) {
-        $display_date = date('m/d/Y', strtotime($loan['approved_at']));
-    } elseif ($loan['status'] === 'Approved' && !empty($loan['approved_at'])) {
+    // Date column
+    if (in_array($loan['status'], ['Active','Approved','Closed']) && !empty($loan['approved_at'])) {
         $display_date = date('m/d/Y', strtotime($loan['approved_at']));
     } elseif ($loan['status'] === 'Rejected' && !empty($loan['rejected_at'])) {
         $display_date = date('m/d/Y', strtotime($loan['rejected_at']));
@@ -187,22 +229,37 @@ foreach ($loans as $loan) {
         $display_date = date('m/d/Y', strtotime($loan['created_at']));
     }
 
+    // ── Highlight Closed rows with a light gold tint ──────────────────────
+    $isClosed = (strtolower($loan['status']) === 'closed');
+    if ($isClosed) {
+        $pdf->SetFillColor(253, 248, 220);  // light gold
+    } else {
+        $pdf->SetFillColor(255, 255, 255);
+    }
+
+    $statusLabel = $isClosed ? 'Paid/Closed' : ucfirst($loan['status']);
+
     $data = [
         $loan['client_id'],
-        substr($loan['client_name'], 0, 25),
-        substr($loan['loan_type'],   0, 18),
-        'PHP ' . number_format($loan['loan_amount'],   2),
+        substr($loan['client_name'], 0, 22),
+        substr($loan['loan_type'],   0, 16),
+        'PHP ' . number_format($loan['loan_amount'],     2),
         $loan['loan_terms'],
         'PHP ' . number_format($loan['monthly_payment'], 2),
         'PHP ' . number_format($loan['loan_amount'] * 1.20, 2),
-        ucfirst($loan['status']),
+        $statusLabel,
         $display_date
     ];
+
+    $fill = $isClosed; // fill with gold tint for closed rows
     foreach ($data as $i => $cell) {
-        $pdf->Cell($w[$i], 7, $cell, 1, 0, 'L');
+        $pdf->Cell($w[$i], 7, $cell, 1, 0, 'L', $fill);
     }
     $pdf->Ln();
 }
+
+// Reset fill color
+$pdf->SetFillColor(255, 255, 255);
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 $pdf->Ln(8);
@@ -210,6 +267,16 @@ $pdf->SetFont('Arial', 'B', 12);
 $pdf->Cell(0, 8, 'Summary Statistics:', 0, 1);
 $pdf->SetFont('Arial', '', 10);
 $pdf->Cell(0, 6, "Total Loans in Report: " . count($loans), 0, 1, 'L');
+
+// ── NEW: Show total settled amount for closed reports ─────────────────────
+if ($report_type === 'closed') {
+    $pdf->SetFont('Arial', 'B', 10);
+    $pdf->Cell(0, 6, "Total Principal Settled: PHP " . number_format($closedTotalAmount, 2), 0, 1, 'L');
+    $pdf->SetFont('Arial', '', 10);
+} elseif ($report_type === 'all' && $counts['Closed'] > 0) {
+    $pdf->Cell(0, 6, "Fully Paid Loans: " . $counts['Closed'] . "  (PHP " . number_format($closedTotalAmount, 2) . " settled)", 0, 1, 'L');
+}
+
 $pdf->Cell(0, 6, "Report Generated: " . date('F j, Y \a\t g:i A'), 0, 1, 'L');
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
@@ -217,13 +284,16 @@ $pdf->Ln(4);
 $pdf->SetFont('Arial', 'B', 11);
 $pdf->Cell(0, 7, 'Important Notes:', 0, 1);
 $pdf->SetFont('Arial', '', 9);
-foreach ([
+
+$notes = [
     "- This report is generated from the Evergreen Trust and Savings Loan Management System.",
     "- All monetary amounts are in Philippine Peso (PHP).",
     "- Interest rate applied: 20% per annum.",
     "- Approved loans require client to claim within 30 days.",
+    "- 'Fully Paid / Closed' loans have been completely settled by the borrower.",
     "- For inquiries, contact the Loan Officer Department."
-] as $note) {
+];
+foreach ($notes as $note) {
     $pdf->Cell(0, 5, $note, 0, 1, 'L');
 }
 

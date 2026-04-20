@@ -619,8 +619,6 @@ $activeNav = 'Dashboard';
           <div class="dd-name"><?= $adminName ?></div>
           <div class="dd-empnum"><?= htmlspecialchars($adminEmpNum) ?></div>
         </div>
-        <a href="profile.php"><i class="bi bi-person"></i> My Profile</a>
-        <a href="settings.php"><i class="bi bi-gear"></i> Settings</a>
         <div class="divider"></div>
         <a href="logout.php" class="logout-link">
           <i class="bi bi-box-arrow-right"></i> Sign Out

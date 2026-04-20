@@ -18,30 +18,36 @@ $dbuser = 'root';
 $dbpass = '';
 
 // ── Filters from GET ─────────────────────────────────────────────────────────
-$filterEmail    = trim($_GET['email']    ?? '');
-$filterMethod   = trim($_GET['method']   ?? '');
-$filterStatus   = trim($_GET['status']   ?? '');
-$filterFrom     = trim($_GET['from']     ?? '');
-$filterTo       = trim($_GET['to']       ?? '');
-$filterLoanId   = intval($_GET['loan_id'] ?? 0);
-$filterBorrower = trim($_GET['borrower'] ?? '');
-$filterLoanStatus = trim($_GET['loan_status'] ?? ''); // 'Closed' = fully paid loans
-$page           = max(1, intval($_GET['page'] ?? 1));
-$perPage        = 20;
-$offset         = ($page - 1) * $perPage;
+$filterEmail      = trim($_GET['email']       ?? '');
+$filterMethod     = trim($_GET['method']      ?? '');
+$filterStatus     = trim($_GET['status']      ?? '');
+$filterFrom       = trim($_GET['from']        ?? '');
+$filterTo         = trim($_GET['to']          ?? '');
+$filterLoanId     = intval($_GET['loan_id']   ?? 0);
+$filterBorrower   = trim($_GET['borrower']    ?? '');
+$filterLoanStatus = trim($_GET['loan_status'] ?? '');
+$page             = max(1, intval($_GET['page'] ?? 1));
+$perPage          = 20;
+$offset           = ($page - 1) * $perPage;
 
 // ── Data ─────────────────────────────────────────────────────────────────────
-$payments     = [];
-$stats        = [
-    'total'       => 0, 'totalAmount'  => 0,
-    'online'      => 0, 'cheque'       => 0,
-    'today'       => 0, 'todayAmount'  => 0,
-    'fullyPaid'   => 0,
+$payments    = [];
+$stats       = [
+    'total'         => 0,
+    'totalAmount'   => 0,
+    'online'        => 0,
+    'cheque'        => 0,
+    'today'         => 0,
+    'todayAmount'   => 0,
+    // ── KEY: fullyPaid counts loan_applications with status='Closed'
+    'fullyPaid'     => 0,
+    // ── NEW: Total amount collected from Closed loans
+    'fullyPaidAmt'  => 0,
 ];
-$totalRows    = 0;
-$totalPages   = 1;
-$tableExists  = false;
-$error        = null;
+$totalRows   = 0;
+$totalPages  = 1;
+$tableExists = false;
+$error       = null;
 
 try {
     $pdo = new PDO(
@@ -59,16 +65,30 @@ try {
 
     if ($tableExists) {
 
-        // ── Global stats ─────────────────────────────────────────────────────
+        // ── CATCH-UP FIX: Auto-close loans that are fully paid ───────────────
+        $pdo->exec("
+            UPDATE loan_applications la
+            INNER JOIN (
+                SELECT lp.loan_application_id, SUM(lp.amount) AS total_paid
+                FROM   loan_payments lp
+                WHERE  lp.status = 'Completed'
+                GROUP  BY lp.loan_application_id
+            ) paid ON paid.loan_application_id = la.id
+            SET    la.status = 'Closed', la.next_payment_due = NULL
+            WHERE  la.status IN ('Active', 'Approved')
+              AND  paid.total_paid >= la.loan_amount
+        ");
+
+        // ── Global payment stats (from loan_payments table) ──────────────────
         $s = $pdo->query("
             SELECT
-                COUNT(*)                                              AS total,
-                COALESCE(SUM(amount),0)                              AS totalAmount,
-                SUM(payment_method = 'online')                       AS online,
-                SUM(payment_method = 'cheque')                       AS cheque,
-                SUM(DATE(payment_date) = CURDATE())                  AS today,
+                COUNT(*)                                               AS total,
+                COALESCE(SUM(amount),0)                               AS totalAmount,
+                SUM(payment_method = 'online')                        AS online,
+                SUM(payment_method = 'cheque')                        AS cheque,
+                SUM(DATE(payment_date) = CURDATE())                   AS today,
                 COALESCE(SUM(CASE WHEN DATE(payment_date)=CURDATE()
-                                  THEN amount ELSE 0 END),0)         AS todayAmount
+                                  THEN amount ELSE 0 END),0)          AS todayAmount
             FROM loan_payments
             WHERE status = 'Completed'
         ")->fetch();
@@ -81,16 +101,18 @@ try {
             $stats['todayAmount'] = round(floatval($s['todayAmount']), 2);
         }
 
-        // Count fully-paid (Closed) loans
+        // ── Count of Closed (fully paid) loans & their total settled amounts ─
         $fp = $pdo->query("
-            SELECT COUNT(DISTINCT loan_application_id) AS cnt
-            FROM   loan_payments lp
-            JOIN   loan_applications la ON la.id = lp.loan_application_id
-            WHERE  la.status = 'Closed'
+            SELECT
+                COUNT(*) AS cnt,
+                COALESCE(SUM(la.loan_amount), 0) AS total_loan_amount
+            FROM loan_applications la
+            WHERE la.status = 'Closed'
         ")->fetch();
-        $stats['fullyPaid'] = (int)($fp['cnt'] ?? 0);
+        $stats['fullyPaid']    = (int)($fp['cnt']               ?? 0);
+        $stats['fullyPaidAmt'] = round(floatval($fp['total_loan_amount'] ?? 0), 2);
 
-        // ── Build WHERE ──────────────────────────────────────────────────────
+        // ── Build WHERE ───────────────────────────────────────────────────────
         $where  = [];
         $params = [];
 
@@ -99,7 +121,6 @@ try {
             $params[':email'] = '%' . $filterEmail . '%';
         }
         if ($filterBorrower) {
-            // Check both denormalised borrower_name column AND joined tables
             $where[] = "(COALESCE(lp.borrower_name,'') LIKE :borrower
                          OR u.full_name  LIKE :borrower2
                          OR lb.full_name LIKE :borrower3)";
@@ -164,18 +185,13 @@ try {
                 lp.user_agent,
                 lp.notes,
                 lp.processed_by,
-                -- Loan status from loan_applications
                 la.status                                     AS loan_status,
                 la.loan_amount,
-                -- Loan type
                 COALESCE(lt.name, CONCAT('Loan #', lp.loan_application_id)) AS loan_type,
                 lt.code                                       AS loan_type_code,
-                -- Borrower: prefer denormalised column (populated by new Payment.php),
-                -- fall back to joined tables for legacy rows
                 COALESCE(lp.borrower_name, u.full_name, lb.full_name, lp.user_email) AS borrower_name,
                 COALESCE(lp.account_number, u.account_number, lb.account_number)     AS account_number,
                 u.contact_number,
-                -- Running total paid for this loan (for fully-paid display)
                 (SELECT COALESCE(SUM(lp2.amount),0)
                  FROM   loan_payments lp2
                  WHERE  lp2.loan_application_id = lp.loan_application_id
@@ -189,9 +205,7 @@ try {
             ORDER  BY lp.payment_date DESC
             LIMIT  :lim OFFSET :off
         ");
-        foreach ($params as $k => $v) {
-            $pStmt->bindValue($k, $v);
-        }
+        foreach ($params as $k => $v) $pStmt->bindValue($k, $v);
         $pStmt->bindValue(':lim', $perPage, PDO::PARAM_INT);
         $pStmt->bindValue(':off', $offset,  PDO::PARAM_INT);
         $pStmt->execute();
@@ -203,15 +217,14 @@ try {
 }
 
 // ── Session info ─────────────────────────────────────────────────────────────
-$adminName    = htmlspecialchars($_SESSION['admin_name']            ?? 'Staff User');
-$adminRole    = htmlspecialchars($_SESSION['admin_role']            ?? 'SuperAdmin');
-$adminEmpNum  = htmlspecialchars($_SESSION['admin_employee_number'] ?? '');
+$adminName     = htmlspecialchars($_SESSION['admin_name']            ?? 'Staff User');
+$adminRole     = htmlspecialchars($_SESSION['admin_role']            ?? 'SuperAdmin');
+$adminEmpNum   = htmlspecialchars($_SESSION['admin_employee_number'] ?? '');
 $adminInitials = implode('', array_map(
     fn($w) => strtoupper($w[0]),
     array_slice(explode(' ', strip_tags($adminName)), 0, 2)
 ));
 
-// ── NAV — same order as Employeedashboard.php ─────────────────────────────
 $navItems = [
     ['label' => 'Dashboard',          'href' => 'Employeedashboard.php', 'icon' => 'bi-speedometer2'],
     ['label' => 'Account Management', 'href' => 'add_officer.php',       'icon' => 'bi-person-gear'],
@@ -283,7 +296,7 @@ function pgUrl(int $pg): string {
     .eg-sidebar-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--eg-gold); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--eg-deep); flex-shrink: 0; }
     .eg-sidebar-uname { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.2; }
     .eg-sidebar-urole  { font-size: 11px; color: var(--eg-gold-l); }
-    .eg-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.50); z-index: 1039; }
+    .eg-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.50); z-index: 1039; }
     .eg-overlay.show { display: block; }
     @media (min-width: 992px) { .eg-overlay { display: none !important; } }
 
@@ -299,7 +312,7 @@ function pgUrl(int $pg): string {
     .eg-topbar-brand .eg-tb-page { font-size: 11px; color: rgba(255,255,255,0.50); }
     .eg-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: rgba(255,255,255,0.55); }
     @media (max-width: 991px) { .eg-breadcrumb { display: none; } }
-    .eg-breadcrumb .bc-sep { opacity: 0.4; }
+    .eg-breadcrumb .bc-sep { opacity: .4; }
     .eg-breadcrumb .bc-active { color: #fff; font-weight: 600; }
     .eg-profile-wrap { position: relative; }
     .eg-profile-btn { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 6px 14px 6px 8px; color: #fff; cursor: pointer; transition: background .2s; font-family: 'DM Sans', sans-serif; }
@@ -310,7 +323,7 @@ function pgUrl(int $pg): string {
     .eg-profile-role { font-size: 11px; color: var(--eg-gold-l); line-height: 1.2; }
     .eg-profile-dropdown { position: absolute; top: calc(100% + 8px); right: 0; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(6,38,32,0.18); min-width: 190px; overflow: hidden; z-index: 2000; display: none; animation: dropIn .18s ease; border: 1px solid var(--eg-border); }
     .eg-profile-dropdown.show { display: block; }
-    @keyframes dropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes dropIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
     .eg-profile-dropdown .dd-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--eg-border); }
     .eg-profile-dropdown .dd-header .dd-name { font-size: 13.5px; font-weight: 700; color: var(--eg-text); }
     .eg-profile-dropdown .dd-header .dd-empnum { font-size: 11px; color: var(--eg-muted); }
@@ -330,7 +343,7 @@ function pgUrl(int $pg): string {
 
     /* ══ STAT CARDS ══ */
     .eg-stat-card { background: var(--eg-card); border-radius: 16px; padding: 22px 24px; box-shadow: 0 1px 6px rgba(10,59,47,0.06),0 4px 16px rgba(10,59,47,0.04); border: 1.5px solid var(--eg-border); transition: border-color .2s, box-shadow .2s, transform .2s; height: 100%; position: relative; overflow: hidden; }
-    .eg-stat-card::before { content: ''; position: absolute; width: 80px; height: 80px; border-radius: 50%; background: var(--eg-light); opacity: 0.6; top: -20px; right: -20px; }
+    .eg-stat-card::before { content: ''; position: absolute; width: 80px; height: 80px; border-radius: 50%; background: var(--eg-light); opacity: .6; top: -20px; right: -20px; }
     .eg-stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(10,59,47,0.10); }
     .eg-stat-card.highlight { background: linear-gradient(135deg, var(--eg-forest) 0%, var(--eg-mid) 100%); border-color: transparent; }
     .eg-stat-card.highlight .eg-stat-label, .eg-stat-card.highlight .eg-stat-sub { color: rgba(255,255,255,0.65); }
@@ -340,9 +353,18 @@ function pgUrl(int $pg): string {
     .eg-stat-card.gold-card .eg-stat-num  { color: #8a6000; }
     .eg-stat-card.blue-card   { border-color: rgba(26,107,85,0.25); background: linear-gradient(135deg,#f0fdf8 0%,#e8f7f2 100%); }
     .eg-stat-card.blue-card .eg-stat-num  { color: var(--eg-mid); }
-    /* NEW: fully-paid card */
-    .eg-stat-card.paid-card   { border-color: rgba(10,59,47,0.25); background: linear-gradient(135deg, #e8f4ef 0%, #d0ece0 100%); }
-    .eg-stat-card.paid-card .eg-stat-num  { color: var(--eg-forest); }
+    /* ── KEY: paid-card styling for fully paid loans counter ── */
+    .eg-stat-card.paid-card {
+      border-color: rgba(201,168,76,0.50);
+      background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%);
+    }
+    .eg-stat-card.paid-card::before { background: rgba(255,255,255,0.08); opacity: 1; }
+    .eg-stat-card.paid-card .eg-stat-label { color: rgba(232,201,107,0.80); }
+    .eg-stat-card.paid-card .eg-stat-num   { color: var(--eg-gold-l); }
+    .eg-stat-card.paid-card .eg-stat-sub   { color: rgba(232,201,107,0.60); }
+    .eg-stat-card.paid-card .eg-stat-icon  { background: rgba(255,255,255,0.15); }
+    .eg-stat-card.paid-card .eg-stat-icon i { color: var(--eg-gold-l); }
+
     .eg-stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--eg-light); margin-bottom: 14px; position: relative; z-index: 1; }
     .eg-stat-icon i { font-size: 18px; color: var(--eg-forest); }
     .eg-stat-card.highlight .eg-stat-icon { background: rgba(255,255,255,0.15); }
@@ -351,8 +373,6 @@ function pgUrl(int $pg): string {
     .eg-stat-card.gold-card .eg-stat-icon i { color: var(--eg-gold); }
     .eg-stat-card.blue-card .eg-stat-icon  { background: rgba(26,107,85,0.12); }
     .eg-stat-card.blue-card .eg-stat-icon i { color: var(--eg-mid); }
-    .eg-stat-card.paid-card .eg-stat-icon  { background: rgba(10,59,47,0.12); }
-    .eg-stat-card.paid-card .eg-stat-icon i { color: var(--eg-forest); }
     .eg-stat-label { font-size: 11.5px; color: var(--eg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; position: relative; z-index: 1; }
     .eg-stat-num   { font-size: 34px; font-weight: 800; color: var(--eg-forest); line-height: 1; margin-bottom: 4px; position: relative; z-index: 1; }
     .eg-stat-num.sm { font-size: 22px; }
@@ -361,17 +381,8 @@ function pgUrl(int $pg): string {
     /* ══ FILTER PANEL ══ */
     .eg-filter-panel { background: var(--eg-card); border: 1.5px solid var(--eg-border); border-radius: 14px; padding: 18px 20px; margin-bottom: 24px; }
     .eg-filter-panel .filter-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--eg-muted); margin-bottom: 5px; display: block; }
-    .eg-filter-input, .eg-filter-select {
-      width: 100%; padding: 9px 12px; border: 1.5px solid var(--eg-border);
-      border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 13.5px;
-      color: var(--eg-text); background: var(--eg-bg); outline: none;
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .eg-filter-select {
-      padding-right: 32px; -webkit-appearance: none; appearance: none; cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath fill='none' stroke='%236b8c7e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 10px center;
-    }
+    .eg-filter-input, .eg-filter-select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--eg-border); border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 13.5px; color: var(--eg-text); background: var(--eg-bg); outline: none; transition: border-color .2s, box-shadow .2s; }
+    .eg-filter-select { padding-right: 32px; -webkit-appearance: none; appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath fill='none' stroke='%236b8c7e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
     .eg-filter-input:focus, .eg-filter-select:focus { border-color: var(--eg-forest); box-shadow: 0 0 0 3px rgba(10,59,47,0.08); background: white; }
     .btn-filter { display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg,var(--eg-forest),var(--eg-mid)); color: #fff; border: none; border-radius: 9px; padding: 10px 20px; font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: 'DM Sans',sans-serif; transition: all .2s; }
     .btn-filter:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(10,59,47,0.22); }
@@ -390,19 +401,17 @@ function pgUrl(int $pg): string {
     .eg-table tbody tr { border-bottom: 1px solid #eef4f0; transition: background .15s; }
     .eg-table tbody tr:last-child { border-bottom: none; }
     .eg-table tbody tr:hover { background: #f8fcfa; }
-    /* Fully-paid rows get a very subtle tinted background */
+    /* ── KEY: Green highlight for fully paid rows ── */
     .eg-table tbody tr.row-fully-paid { background: #f0faf6; }
     .eg-table tbody tr.row-fully-paid:hover { background: #e4f5ed; }
-    .eg-table tbody td  { padding: 13px 18px; font-size: 13.5px; color: var(--eg-text); vertical-align: middle; }
+    .eg-table tbody td { padding: 13px 18px; font-size: 13.5px; color: var(--eg-text); vertical-align: middle; }
 
     .eg-borrower-cell { display: flex; align-items: center; gap: 10px; }
     .eg-borrower-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--eg-light); border: 1.5px solid var(--eg-border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--eg-forest); flex-shrink: 0; }
-    /* Avatar for fully-paid borrowers */
     .row-fully-paid .eg-borrower-avatar { background: #c8e6d4; border-color: #a0d4b8; }
     .eg-borrower-name    { font-weight: 600; font-size: 13.5px; color: var(--eg-text); }
     .eg-borrower-account { font-size: 11.5px; color: var(--eg-muted); font-family: 'Courier New', monospace; }
 
-    /* Payment status badges */
     .eg-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; letter-spacing: .3px; }
     .eg-badge.completed { background: var(--eg-light); color: var(--eg-forest); border: 1px solid var(--eg-border); }
     .eg-badge.completed::before { content: '●'; font-size: 8px; color: var(--eg-mid); }
@@ -411,49 +420,37 @@ function pgUrl(int $pg): string {
     .eg-badge.failed  { background: #fef0ef; color: #c0392b; border: 1px solid #f5c6c3; }
     .eg-badge.failed::before  { content: '●'; font-size: 8px; color: #c0392b; }
 
-    /* ── Loan status badge: Closed / Paid ── */
-    .loan-status-badge {
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 3px 10px; border-radius: 20px;
-      font-size: 11px; font-weight: 700; letter-spacing: .3px;
-    }
+    /* ── KEY: Loan status badges ── */
+    .loan-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .3px; }
     .loan-status-badge.closed {
       background: linear-gradient(90deg, #0a3b2f, #1a6b55);
       color: #e8c96b;
       border: 1px solid rgba(201,168,76,0.35);
     }
     .loan-status-badge.closed::before { content: '✓'; font-size: 10px; }
-    .loan-status-badge.active {
-      background: #e8f4ef; color: var(--eg-forest);
-      border: 1px solid var(--eg-border);
-    }
+    .loan-status-badge.active   { background: #e8f4ef; color: var(--eg-forest); border: 1px solid var(--eg-border); }
     .loan-status-badge.active::before { content: '●'; font-size: 7px; color: var(--eg-mid); }
-    .loan-status-badge.approved {
-      background: #e8eeff; color: #1a4fce;
-      border: 1px solid #c8d8f8;
-    }
+    .loan-status-badge.approved { background: #e8eeff; color: #1a4fce; border: 1px solid #c8d8f8; }
     .loan-status-badge.approved::before { content: '●'; font-size: 7px; color: #1a4fce; }
+    .loan-status-badge.rejected { background: #fef0ef; color: #c0392b; border: 1px solid #f5c6c3; }
+    .loan-status-badge.rejected::before { content: '●'; font-size: 7px; color: #c0392b; }
 
-    /* Fully-paid highlight banner inside table cell */
+    /* ── KEY: Paid in full chip shown inside borrower cell ── */
     .paid-in-full-chip {
       display: inline-flex; align-items: center; gap: 4px;
       background: linear-gradient(90deg, #0a3b2f, #1a6b55);
-      color: #e8c96b;
-      font-size: 10px; font-weight: 700;
-      padding: 2px 8px; border-radius: 6px;
-      letter-spacing: .4px; text-transform: uppercase;
-      margin-top: 3px;
+      color: #e8c96b; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 6px; letter-spacing: .4px;
+      text-transform: uppercase; margin-top: 3px;
     }
 
     .method-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; }
     .method-pill.online { background: #eef4ff; color: #1a4fce; border: 1px solid #c8d8f8; }
     .method-pill.cheque { background: #fff5e6; color: #b06000; border: 1px solid #f5ddb0; }
-
     .code-pill { font-size: 10.5px; font-weight: 700; background: rgba(10,59,47,0.08); color: var(--eg-forest); padding: .15rem .5rem; border-radius: 5px; letter-spacing: .4px; text-transform: uppercase; }
     .txn-ref { font-family: 'Courier New', monospace; font-size: 12px; color: var(--eg-muted); word-break: break-all; }
     .txn-ref-id { font-size: 11px; color: #bbb; }
 
-    /* Expandable user-agent tooltip on hover */
     .ua-wrap { position: relative; cursor: help; }
     .ua-short { font-size: 11px; color: var(--eg-muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ua-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; background: #1c2b25; color: #fff; padding: 7px 10px; border-radius: 8px; font-size: 11px; white-space: normal; min-width: 200px; max-width: 320px; z-index: 100; line-height: 1.4; }
@@ -474,21 +471,10 @@ function pgUrl(int $pg): string {
     .eg-alert-error { background: #fdf0ef; border: 1px solid #f5c6c3; color: #c0392b; border-radius: 12px; padding: 14px 18px; font-size: 14px; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
     .eg-alert-warn  { background: #fefbec; border: 1px solid #f5e0a0; color: #7a5200; border-radius: 12px; padding: 14px 18px; font-size: 14px; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
 
-    /* Quick-filter chip to show only Closed loans */
     .quick-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-    .qf-chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 14px; border-radius: 20px;
-      font-size: 12.5px; font-weight: 600;
-      text-decoration: none; transition: all .18s;
-      border: 1.5px solid var(--eg-border);
-      background: #fff; color: var(--eg-muted);
-    }
+    .qf-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all .18s; border: 1.5px solid var(--eg-border); background: #fff; color: var(--eg-muted); }
     .qf-chip:hover { border-color: var(--eg-mid); color: var(--eg-forest); background: var(--eg-light); }
-    .qf-chip.active {
-      background: linear-gradient(90deg, var(--eg-forest), var(--eg-mid));
-      color: #e8c96b; border-color: transparent;
-    }
+    .qf-chip.active { background: linear-gradient(90deg, var(--eg-forest), var(--eg-mid)); color: #e8c96b; border-color: transparent; }
 
     @media (max-width: 575px) { .eg-content { padding: 18px 14px 40px; } .eg-stat-num { font-size: 26px; } }
   </style>
@@ -572,8 +558,6 @@ function pgUrl(int $pg): string {
           <div class="dd-name"><?= $adminName ?></div>
           <div class="dd-empnum"><?= $adminEmpNum ?></div>
         </div>
-        <a href="profile.php"><i class="bi bi-person"></i> My Profile</a>
-        <a href="settings.php"><i class="bi bi-gear"></i> Settings</a>
         <div class="divider"></div>
         <a href="logout.php" class="logout-link">
           <i class="bi bi-box-arrow-right"></i> Sign Out
@@ -586,10 +570,7 @@ function pgUrl(int $pg): string {
 
     <div class="eg-page-header">
       <h1 class="eg-page-title">Manage Payments</h1>
-      <p class="eg-page-sub">
-        All borrower repayments 
-        <code style="background:rgba(10,59,47,0.08);border-radius:5px;padding:1px 6px;font-size:12px;"></code>
-      </p>
+      <p class="eg-page-sub">All borrower repayments &mdash; <?= number_format($stats['total']) ?> total transactions &nbsp;&middot;&nbsp; ₱<?= number_format($stats['totalAmount'],2) ?> collected</p>
     </div>
 
     <?php if ($error): ?>
@@ -599,7 +580,7 @@ function pgUrl(int $pg): string {
     <?php if (!$tableExists && !$error): ?>
     <div class="eg-alert-warn">
       <i class="bi bi-exclamation-triangle-fill"></i>
-      The <strong>loan_payments</strong> table does not exist yet. Import <code>loan_payments_schema.sql</code> to create it.
+      The <strong>loan_payments</strong> table does not exist yet.
     </div>
     <?php endif; ?>
 
@@ -645,13 +626,19 @@ function pgUrl(int $pg): string {
           <div class="eg-stat-sub"><?= date('M d, Y') ?></div>
         </div>
       </div>
-      <!-- NEW: Fully Paid stat card -->
+      <!-- ── KEY: Fully Paid / Closed Loans counter card ── -->
       <div class="col-6 col-sm-4 col-xl-2">
         <div class="eg-stat-card paid-card">
           <div class="eg-stat-icon"><i class="bi bi-patch-check-fill"></i></div>
           <div class="eg-stat-label">Fully Paid Loans</div>
           <div class="eg-stat-num"><?= number_format($stats['fullyPaid']) ?></div>
-          <div class="eg-stat-sub">Status: Closed</div>
+          <div class="eg-stat-sub">
+            <?php if ($stats['fullyPaidAmt'] > 0): ?>
+              ₱<?= number_format($stats['fullyPaidAmt'], 0) ?> settled
+            <?php else: ?>
+              Status: Closed
+            <?php endif; ?>
+          </div>
         </div>
       </div>
     </div>
@@ -693,14 +680,12 @@ function pgUrl(int $pg): string {
           <div class="col-12 col-sm-6 col-md-3">
             <label class="filter-label">Borrower Name</label>
             <input type="text" name="borrower" class="eg-filter-input"
-                   placeholder="Search name…"
-                   value="<?= htmlspecialchars($filterBorrower) ?>">
+                   placeholder="Search name…" value="<?= htmlspecialchars($filterBorrower) ?>">
           </div>
           <div class="col-12 col-sm-6 col-md-3">
             <label class="filter-label">Email</label>
             <input type="text" name="email" class="eg-filter-input"
-                   placeholder="Search email…"
-                   value="<?= htmlspecialchars($filterEmail) ?>">
+                   placeholder="Search email…" value="<?= htmlspecialchars($filterEmail) ?>">
           </div>
           <div class="col-6 col-md-2">
             <label class="filter-label">Method</label>
@@ -730,27 +715,20 @@ function pgUrl(int $pg): string {
           </div>
           <div class="col-6 col-md-2">
             <label class="filter-label">From Date</label>
-            <input type="date" name="from" class="eg-filter-input"
-                   value="<?= htmlspecialchars($filterFrom) ?>">
+            <input type="date" name="from" class="eg-filter-input" value="<?= htmlspecialchars($filterFrom) ?>">
           </div>
           <div class="col-6 col-md-2">
             <label class="filter-label">To Date</label>
-            <input type="date" name="to" class="eg-filter-input"
-                   value="<?= htmlspecialchars($filterTo) ?>">
+            <input type="date" name="to" class="eg-filter-input" value="<?= htmlspecialchars($filterTo) ?>">
           </div>
           <div class="col-6 col-md-2">
             <label class="filter-label">Loan App ID</label>
             <input type="number" name="loan_id" class="eg-filter-input"
-                   placeholder="e.g. 5"
-                   value="<?= $filterLoanId > 0 ? $filterLoanId : '' ?>">
+                   placeholder="e.g. 5" value="<?= $filterLoanId > 0 ? $filterLoanId : '' ?>">
           </div>
           <div class="col-12 col-md-2 d-flex gap-2">
-            <button type="submit" class="btn-filter">
-              <i class="bi bi-search"></i> Search
-            </button>
-            <a href="manage_payments.php" class="btn-clear">
-              <i class="bi bi-x-lg"></i>
-            </a>
+            <button type="submit" class="btn-filter"><i class="bi bi-search"></i> Search</button>
+            <a href="manage_payments.php" class="btn-clear"><i class="bi bi-x-lg"></i></a>
           </div>
         </div>
       </form>
@@ -763,7 +741,7 @@ function pgUrl(int $pg): string {
           <div class="eg-table-header-title">Payment Records</div>
           <div class="eg-table-header-sub">
             <?php if ($filterBorrower || $filterEmail || $filterMethod || $filterStatus || $filterFrom || $filterTo || $filterLoanId || $filterLoanStatus): ?>
-              Filtered: <?= number_format($totalRows) ?> record(s) &nbsp;·&nbsp;
+              Filtered: <?= number_format($totalRows) ?> record(s) &nbsp;&middot;&nbsp;
               <a href="manage_payments.php" style="color:var(--eg-muted);font-size:12px;">
                 <i class="bi bi-x-circle me-1"></i>Clear filters
               </a>
@@ -809,39 +787,35 @@ function pgUrl(int $pg): string {
                   $initials .= strtoupper($w[0] ?? '');
               }
               $payStatusLower  = strtolower($p['payment_status'] ?? 'completed');
-              $loanStatusLower = strtolower($p['loan_status']    ?? 'active');
+              $loanStatusRaw   = $p['loan_status'] ?? 'Active';
+              $loanStatusLower = strtolower($loanStatusRaw);
               $methodLower     = strtolower($p['payment_method']);
+
+              // ── KEY: Is this loan fully paid? ───────────────────────────
               $isFullyPaid     = ($loanStatusLower === 'closed');
-              $payDt           = $p['payment_date'] ? date('M d, Y', strtotime($p['payment_date'])) : '—';
-              $payTm           = $p['payment_date'] ? date('H:i:s',  strtotime($p['payment_date'])) : '';
-              $ua              = $p['user_agent'] ?? null;
-              $uaShort         = $ua ? (strlen($ua) > 28 ? substr($ua, 0, 28) . '…' : $ua) : '—';
-              $rowClass        = $isFullyPaid ? ' row-fully-paid' : '';
+
+              $payDt    = $p['payment_date'] ? date('M d, Y', strtotime($p['payment_date'])) : '—';
+              $payTm    = $p['payment_date'] ? date('H:i:s',  strtotime($p['payment_date'])) : '';
+              $ua       = $p['user_agent'] ?? null;
+              $uaShort  = $ua ? (strlen($ua) > 28 ? substr($ua, 0, 28) . '…' : $ua) : '—';
+              $rowClass = $isFullyPaid ? ' row-fully-paid' : '';
             ?>
             <tr class="<?= $rowClass ?>">
-              <!-- Row # -->
               <td class="txn-ref-id">#<?= (int)$p['id'] ?></td>
 
-              <!-- Transaction Ref -->
               <td>
                 <div class="txn-ref"><?= htmlspecialchars($p['transaction_ref']) ?></div>
                 <div class="txn-ref-id">Loan App #<?= (int)$p['loan_application_id'] ?></div>
               </td>
 
-              <!-- Borrower -->
               <td>
                 <div class="eg-borrower-cell">
-                  <div class="eg-borrower-avatar">
-                    <?= htmlspecialchars($initials ?: '?') ?>
-                  </div>
+                  <div class="eg-borrower-avatar"><?= htmlspecialchars($initials ?: '?') ?></div>
                   <div>
-                    <div class="eg-borrower-name">
-                      <?= htmlspecialchars($p['borrower_name'] ?? '—') ?>
-                    </div>
-                    <div class="eg-borrower-account">
-                      <?= htmlspecialchars($p['account_number'] ?? $p['user_email']) ?>
-                    </div>
+                    <div class="eg-borrower-name"><?= htmlspecialchars($p['borrower_name'] ?? '—') ?></div>
+                    <div class="eg-borrower-account"><?= htmlspecialchars($p['account_number'] ?? $p['user_email']) ?></div>
                     <?php if ($isFullyPaid): ?>
+                      <!-- ── KEY: Paid in Full chip ── -->
                       <div class="paid-in-full-chip">
                         <i class="bi bi-patch-check-fill" style="font-size:9px;"></i>
                         Paid in Full
@@ -851,32 +825,26 @@ function pgUrl(int $pg): string {
                 </div>
               </td>
 
-              <!-- Loan type -->
               <td>
-                <div style="font-weight:600;font-size:13px;color:var(--eg-text);">
-                  <?= htmlspecialchars($p['loan_type'] ?? '—') ?>
-                </div>
+                <div style="font-weight:600;font-size:13px;color:var(--eg-text);"><?= htmlspecialchars($p['loan_type'] ?? '—') ?></div>
                 <?php if (!empty($p['loan_type_code'])): ?>
                   <span class="code-pill"><?= htmlspecialchars($p['loan_type_code']) ?></span>
                 <?php endif; ?>
                 <?php if (!empty($p['loan_amount'])): ?>
-                  <div class="txn-ref-id" style="margin-top:2px;">
-                    Principal: ₱<?= number_format(floatval($p['loan_amount']), 2) ?>
-                  </div>
+                  <div class="txn-ref-id" style="margin-top:2px;">Principal: ₱<?= number_format(floatval($p['loan_amount']), 2) ?></div>
                 <?php endif; ?>
               </td>
 
-              <!-- Amount -->
               <td style="font-weight:700;font-size:14px;color:var(--eg-forest);white-space:nowrap;">
                 ₱<?= number_format(floatval($p['amount']), 2) ?>
                 <?php if ($isFullyPaid && !empty($p['total_paid_for_loan'])): ?>
+                  <!-- ── KEY: Show cumulative total for closed loans ── -->
                   <div style="font-size:11px;color:var(--eg-mid);font-weight:500;margin-top:2px;">
-                    Total: ₱<?= number_format(floatval($p['total_paid_for_loan']), 2) ?>
+                    Cumul: ₱<?= number_format(floatval($p['total_paid_for_loan']), 2) ?>
                   </div>
                 <?php endif; ?>
               </td>
 
-              <!-- Method -->
               <td>
                 <span class="method-pill <?= $methodLower ?>">
                   <i class="bi bi-<?= $methodLower === 'online' ? 'globe' : 'bank2' ?>"></i>
@@ -884,29 +852,22 @@ function pgUrl(int $pg): string {
                 </span>
               </td>
 
-              <!-- Date & Time -->
               <td style="white-space:nowrap;">
                 <div style="font-weight:600;font-size:13px;"><?= $payDt ?></div>
-                <div style="font-size:12px;color:var(--eg-muted);">
-                  <i class="bi bi-clock me-1" style="font-size:10px;"></i><?= $payTm ?>
-                </div>
+                <div style="font-size:12px;color:var(--eg-muted);"><i class="bi bi-clock me-1" style="font-size:10px;"></i><?= $payTm ?></div>
               </td>
 
-              <!-- Transaction Status -->
               <td>
-                <span class="eg-badge <?= $payStatusLower ?>">
-                  <?= htmlspecialchars($p['payment_status']) ?>
-                </span>
+                <span class="eg-badge <?= $payStatusLower ?>"><?= htmlspecialchars($p['payment_status']) ?></span>
               </td>
 
-              <!-- Loan Status (Closed = green gold, Active = normal) -->
+              <!-- ── KEY: Loan status column — shows Closed/Paid with gold badge ── -->
               <td>
                 <span class="loan-status-badge <?= $loanStatusLower ?>">
-                  <?= $isFullyPaid ? 'Closed / Paid' : htmlspecialchars($p['loan_status']) ?>
+                  <?= $isFullyPaid ? 'Closed / Paid' : htmlspecialchars($loanStatusRaw) ?>
                 </span>
               </td>
 
-              <!-- IP address + user agent -->
               <td>
                 <div style="font-size:11.5px;color:var(--eg-muted);font-family:'Courier New',monospace;">
                   <?= htmlspecialchars($p['ip_address'] ?? '—') ?>
@@ -924,13 +885,10 @@ function pgUrl(int $pg): string {
         </table>
       </div>
 
-      <!-- PAGINATION -->
       <?php if ($totalPages > 1): ?>
       <div class="pg-wrap">
         <div class="pg-info">
-          Showing
-          <?= number_format(($page - 1) * $perPage + 1) ?>–<?= number_format(min($page * $perPage, $totalRows)) ?>
-          of <?= number_format($totalRows) ?>
+          Showing <?= number_format(($page - 1) * $perPage + 1) ?>–<?= number_format(min($page * $perPage, $totalRows)) ?> of <?= number_format($totalRows) ?>
         </div>
         <div class="pg-btns">
           <a href="<?= pgUrl(1) ?>"         class="pg-btn <?= $page <= 1 ? 'disabled' : '' ?>"><i class="bi bi-chevron-double-left"></i></a>
@@ -941,8 +899,8 @@ function pgUrl(int $pg): string {
           for ($pg = $start; $pg <= $end; $pg++): ?>
             <a href="<?= pgUrl($pg) ?>" class="pg-btn <?= $pg === $page ? 'active' : '' ?>"><?= $pg ?></a>
           <?php endfor; ?>
-          <a href="<?= pgUrl($page + 1) ?>"      class="pg-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="bi bi-chevron-right"></i></a>
-          <a href="<?= pgUrl($totalPages) ?>"     class="pg-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="bi bi-chevron-double-right"></i></a>
+          <a href="<?= pgUrl($page + 1) ?>"  class="pg-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="bi bi-chevron-right"></i></a>
+          <a href="<?= pgUrl($totalPages) ?>" class="pg-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="bi bi-chevron-double-right"></i></a>
         </div>
       </div>
       <?php endif; ?>

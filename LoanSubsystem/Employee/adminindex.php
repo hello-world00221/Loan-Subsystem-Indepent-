@@ -41,7 +41,7 @@ $totalLoans = array_sum($counts);
   /* ── Stat cards ── */
   .eg-loan-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 18px;
     margin-bottom: 32px;
   }
@@ -106,6 +106,23 @@ $totalLoans = array_sum($counts);
   .eg-loan-card.c-rejected .eg-loan-card-icon i { color: #f44336; }
   .eg-loan-card.c-rejected .eg-loan-card-num { color: #c62828; }
 
+  /* ── NEW: Closed / Fully Paid card — dark green gold accent ── */
+  .eg-loan-card.c-closed {
+    border-left: 4px solid #c9a84c;
+    background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%);
+  }
+  .eg-loan-card.c-closed::before { background: rgba(255,255,255,.08); opacity: 1; }
+  .eg-loan-card.c-closed .eg-loan-card-icon {
+    background: rgba(201,168,76,.20);
+  }
+  .eg-loan-card.c-closed .eg-loan-card-icon i { color: #e8c96b; }
+  .eg-loan-card.c-closed .eg-loan-card-label  { color: rgba(232,201,107,.75); }
+  .eg-loan-card.c-closed .eg-loan-card-num    { color: #e8c96b; }
+  .eg-loan-card.c-closed:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 24px rgba(201,168,76,.25);
+  }
+
   /* ── Table card ── */
   .eg-table-card {
     background: var(--eg-card);
@@ -132,6 +149,9 @@ $totalLoans = array_sum($counts);
   }
   .eg-table-card tbody tr:last-child { border-bottom: none; }
   .eg-table-card tbody tr:hover { background: #f8fcfa; }
+  /* Highlight closed/paid rows in the table */
+  .eg-table-card tbody tr[data-status="Closed"] { background: #f5fdf8; }
+  .eg-table-card tbody tr[data-status="Closed"]:hover { background: #e8f8ef; }
   .eg-table-card tbody td {
     padding: 13px 20px; font-size: 13.5px;
     color: var(--eg-text); vertical-align: middle;
@@ -152,8 +172,13 @@ $totalLoans = array_sum($counts);
   .badge-status.active::before { color: var(--eg-mid); }
   .badge-status.rejected { background: rgba(244,67,54,.10); color: #c62828; border: 1px solid rgba(244,67,54,.25); }
   .badge-status.rejected::before { color: #f44336; }
-  .badge-status.closed   { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
-  .badge-status.closed::before { color: #9ca3af; }
+  /* ── NEW: Closed badge — gold on dark green ── */
+  .badge-status.closed {
+    background: linear-gradient(90deg, #0a3b2f, #1a6b55);
+    color: #e8c96b;
+    border: 1px solid rgba(201,168,76,.35);
+  }
+  .badge-status.closed::before { content: '✓'; font-size: 9px; color: #e8c96b; }
 
   /* View button */
   .btn-view {
@@ -192,14 +217,15 @@ $totalLoans = array_sum($counts);
     position: relative; height: 320px;
     display: flex; justify-content: center; align-items: center;
   }
+  /* ── 3-column stat grid to fit 5 items neatly (2+3 or 3+2) ── */
   .eg-chart-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    gap: 12px;
   }
   .eg-chart-stat {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 18px 16px; border-radius: 12px;
+    padding: 16px 14px; border-radius: 12px;
     border-left: 4px solid var(--eg-forest);
     transition: transform .2s, box-shadow .2s;
   }
@@ -213,6 +239,15 @@ $totalLoans = array_sum($counts);
   .eg-chart-stat.s-approved { border-left-color: #4CAF50; }           .eg-chart-stat.s-approved p { color: #2e7d32; }
   .eg-chart-stat.s-pending  { border-left-color: #FF9800; }           .eg-chart-stat.s-pending  p { color: #e65100; }
   .eg-chart-stat.s-rejected { border-left-color: #f44336; }           .eg-chart-stat.s-rejected p { color: #c62828; }
+  /* ── NEW: Closed stat chip ── */
+  .eg-chart-stat.s-closed {
+    border-left-color: #c9a84c;
+    background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%);
+    /* span full width on its own row */
+    grid-column: 1 / -1;
+  }
+  .eg-chart-stat.s-closed h4 { color: rgba(232,201,107,.70); }
+  .eg-chart-stat.s-closed p  { color: #e8c96b; }
 
   /* ── Report buttons ── */
   .eg-reports {
@@ -231,7 +266,7 @@ $totalLoans = array_sum($counts);
   }
   .eg-report-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 14px;
   }
   .eg-report-btn {
@@ -251,6 +286,9 @@ $totalLoans = array_sum($counts);
   .btn-r-approved { background: linear-gradient(135deg, #4CAF50 0%, var(--eg-forest) 100%); }
   .btn-r-pending  { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); }
   .btn-r-rejected { background: linear-gradient(135deg, #f44336 0%, #c62828 100%); }
+  /* ── NEW: Closed/Fully Paid report button ── */
+  .btn-r-closed   { background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%); border: 1px solid rgba(201,168,76,.40); }
+  .btn-r-closed:hover { box-shadow: 0 6px 16px rgba(201,168,76,.30); }
 
   /* ── Section header ── */
   .eg-section-header {
@@ -335,6 +373,7 @@ $totalLoans = array_sum($counts);
   @media (max-width: 768px) {
     .modal-content .details { grid-template-columns: 1fr; }
     .eg-analytics-grid { grid-template-columns: 1fr; }
+    .eg-chart-stats { grid-template-columns: 1fr 1fr; }
   }
 </style>
 
@@ -377,6 +416,12 @@ $totalLoans = array_sum($counts);
       <div class="eg-loan-card-icon"><i class="bi bi-x-circle-fill"></i></div>
       <div class="eg-loan-card-label">Rejected</div>
       <div class="eg-loan-card-num"><?= $counts['Rejected'] ?></div>
+    </div>
+    <!-- ── NEW: Closed / Fully Paid card ── -->
+    <div class="eg-loan-card c-closed" onclick="filterLoans('Closed', this)">
+      <div class="eg-loan-card-icon"><i class="bi bi-patch-check-fill"></i></div>
+      <div class="eg-loan-card-label">Fully Paid</div>
+      <div class="eg-loan-card-num"><?= $counts['Closed'] ?></div>
     </div>
   </div>
 
@@ -438,7 +483,11 @@ $totalLoans = array_sum($counts);
               <td style="color:var(--eg-muted); font-size:13px;"><?= $date ?> <?= $time ?></td>
               <td>
                 <span class="badge-status <?= $statusClass ?>">
-                  <?= htmlspecialchars($row['status']) ?>
+                  <?php if ($statusClass === 'closed'): ?>
+                    Closed / Paid
+                  <?php else: ?>
+                    <?= htmlspecialchars($row['status']) ?>
+                  <?php endif; ?>
                 </span>
               </td>
               <td>
@@ -489,6 +538,11 @@ $totalLoans = array_sum($counts);
           <h4>Rejected</h4>
           <p><?= $counts['Rejected'] ?></p>
         </div>
+        <!-- ── NEW: Closed / Fully Paid stat chip — spans full width ── -->
+        <div class="eg-chart-stat s-closed">
+          <h4>🏆 Fully Paid / Closed</h4>
+          <p><?= $counts['Closed'] ?></p>
+        </div>
       </div>
     </div>
   </div>
@@ -511,6 +565,10 @@ $totalLoans = array_sum($counts);
       </button>
       <button class="eg-report-btn btn-r-rejected" onclick="generateReport('rejected')">
         <i class="bi bi-x-circle-fill"></i> Rejected Loans
+      </button>
+      <!-- ── NEW: Fully Paid / Closed report button ── -->
+      <button class="eg-report-btn btn-r-closed"   onclick="generateReport('closed')">
+        <i class="bi bi-patch-check-fill"></i> Fully Paid Loans
       </button>
     </div>
   </div>
@@ -601,7 +659,8 @@ $totalLoans = array_sum($counts);
     active:   <?= $counts['Active']   ?>,
     approved: <?= $counts['Approved'] ?>,
     pending:  <?= $counts['Pending']  ?>,
-    rejected: <?= $counts['Rejected'] ?>
+    rejected: <?= $counts['Rejected'] ?>,
+    closed:   <?= $counts['Closed']   ?>   // ── NEW
   };
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -610,10 +669,22 @@ $totalLoans = array_sum($counts);
       window.loanPieChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['Active', 'Awaiting Claim', 'Pending', 'Rejected'],
+          labels: ['Active', 'Awaiting Claim', 'Pending', 'Rejected', 'Fully Paid'],
           datasets: [{
-            data: [chartData.active, chartData.approved, chartData.pending, chartData.rejected],
-            backgroundColor: ['#0a3b2f', '#4CAF50', '#FF9800', '#f44336'],
+            data: [
+              chartData.active,
+              chartData.approved,
+              chartData.pending,
+              chartData.rejected,
+              chartData.closed       // ── NEW
+            ],
+            backgroundColor: [
+              '#0a3b2f',   // Active — dark green
+              '#4CAF50',   // Approved — medium green
+              '#FF9800',   // Pending — orange
+              '#f44336',   // Rejected — red
+              '#c9a84c'    // Fully Paid — gold  ← NEW
+            ],
             borderWidth: 4,
             borderColor: '#ffffff',
             hoverOffset: 10
@@ -627,8 +698,8 @@ $totalLoans = array_sum($counts);
             legend: {
               position: 'bottom',
               labels: {
-                padding: 20,
-                font: { size: 13, weight: 'bold', family: 'DM Sans' },
+                padding: 18,
+                font: { size: 12, weight: 'bold', family: 'DM Sans' },
                 usePointStyle: true, pointStyle: 'circle'
               }
             },
@@ -697,13 +768,14 @@ $totalLoans = array_sum($counts);
         // Status badge
         const st  = data.status || '';
         const stL = st.toLowerCase();
+        const stLabel = stL === 'closed' ? 'Closed / Paid' : st;
         document.getElementById('modal-status-badge').innerHTML =
-          `<span class="badge-status ${stL}">${st}</span>`;
+          `<span class="badge-status ${stL}">${stLabel}</span>`;
 
-        // Approval / rejection info
+        // Approval / rejection / closed info
         const approvalInfo  = document.getElementById('approval-info');
         const rejectionInfo = document.getElementById('rejection-info');
-        if ((stL === 'active' || stL === 'approved') && data.approved_by) {
+        if ((stL === 'active' || stL === 'approved' || stL === 'closed') && data.approved_by) {
           document.getElementById('modal-approved-by').textContent = data.approved_by;
           document.getElementById('modal-approved-at').textContent = new Date(data.approved_at).toLocaleString();
           approvalInfo.style.display  = 'block';

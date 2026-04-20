@@ -632,7 +632,7 @@ try {
         <strong>Reference No:</strong> <span id="ref-number">—</span><br>
         <strong>Date:</strong> <span id="ref-date">—</span>
       </div>
-      <button class="btn-dashboard" onclick="location.href='index.php?scrollTo=dashboard'">Go To Dashboard</button>
+      <button class="btn-dashboard" onclick="location.href='Dashboard.php'">Go To Dashboard</button>
     </div>
 
   </div>

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 13, 2026 at 03:07 PM
+-- Generation Time: Apr 20, 2026 at 06:18 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -590,17 +590,19 @@ CREATE TABLE `loan_applications` (
 
 INSERT INTO `loan_applications` (`id`, `user_id`, `loan_type_id`, `user_email`, `loan_terms`, `loan_amount`, `monthly_payment`, `due_date`, `next_payment_due`, `purpose`, `status`, `created_at`) VALUES
 (1, 1, 8, 'franciscarpeso@gmail.com', '6 Months', 5000.00, 882.61, '2026-09-15', '2026-04-15', 'test', 'Active', '2026-03-15 04:32:22'),
-(2, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 5000.00, 882.61, '2026-09-15', '2026-04-15', 'test also', 'Active', '2026-03-15 07:02:48'),
-(3, 3, 7, 'kurtcarpeso02@gmail.com', '24 Months', 700000.00, 35627.06, '2028-03-15', '2026-04-15', 'test again', 'Active', '2026-03-15 07:09:26'),
+(2, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 5000.00, 882.61, '2026-09-15', NULL, 'test also', 'Closed', '2026-03-15 07:02:48'),
+(3, 3, 7, 'kurtcarpeso02@gmail.com', '24 Months', 700000.00, 35627.06, '2028-03-15', NULL, 'test again', 'Closed', '2026-03-15 07:09:26'),
 (4, 1, 5, 'franciscarpeso@gmail.com', '6 Months', 5000.00, 882.61, '2026-09-15', '2026-04-15', 'dry test', 'Active', '2026-03-15 07:16:43'),
 (5, 3, 1, 'kurtcarpeso02@gmail.com', '6 Months', 5000.00, 882.61, '2026-09-15', '2026-04-15', 'last dry run', 'Active', '2026-03-15 07:54:33'),
 (6, 1, 5, 'franciscarpeso@gmail.com', '36 Months', 6000.00, 222.98, '2029-03-15', '2026-04-15', 'last dry run', 'Rejected', '2026-03-15 07:57:42'),
-(7, 4, 8, 'joannamariecarpeso@gmail.com', '6 Months', 6000.00, 1059.14, '2026-10-07', '2026-06-09', 'Tuition', 'Active', '2026-04-07 14:51:50'),
+(7, 4, 8, 'joannamariecarpeso@gmail.com', '6 Months', 6000.00, 1059.14, '2026-10-07', NULL, 'Tuition', 'Closed', '2026-04-07 14:51:50'),
 (8, 4, 8, 'joannamariecarpeso@gmail.com', '6 Months', 7000.00, 1235.66, '2026-10-09', '2026-05-09', 'Test', 'Rejected', '2026-04-09 03:18:39'),
 (9, 1, 8, 'franciscarpeso@gmail.com', '6 Months', 5000.00, 882.61, '2026-10-09', '2026-05-09', 'test', 'Rejected', '2026-04-09 03:36:11'),
 (10, 3, 1, 'kurtcarpeso02@gmail.com', '12 Months', 10000.00, 926.35, '2027-04-09', '2026-05-09', 'Test', 'Active', '2026-04-09 04:30:54'),
 (11, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 5000.00, 882.61, '2026-10-09', '2026-06-09', 'Test', 'Active', '2026-04-09 04:35:41'),
-(12, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 10000.00, 1765.23, '2026-10-09', '2026-05-09', 'Pre-test', 'Pending', '2026-04-09 04:40:50');
+(12, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 10000.00, 1765.23, '2026-10-09', '2026-05-09', 'Pre-test', 'Rejected', '2026-04-09 04:40:50'),
+(13, 2, 8, 'carpeso0958432@gmail.com', '6 Months', 7000.00, 1235.66, '2026-10-19', NULL, 'Tuition', 'Closed', '2026-04-19 09:39:38'),
+(14, 3, 1, 'kurtcarpeso02@gmail.com', '12 Months', 100000.00, 9263.45, '2027-04-20', '2026-05-20', 'Tuition', 'Pending', '2026-04-20 01:17:49');
 
 -- --------------------------------------------------------
 
@@ -630,7 +632,8 @@ INSERT INTO `loan_approvals` (`id`, `loan_application_id`, `approved_by`, `appro
 (11, 5, 'Kurt Francis Carpeso', 2, '2026-03-15 15:55:29'),
 (13, 7, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:15:15'),
 (15, 10, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 12:33:47'),
-(17, 11, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 12:39:23');
+(17, 11, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 12:39:23'),
+(19, 13, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-19 17:47:56');
 
 -- --------------------------------------------------------
 
@@ -665,7 +668,9 @@ INSERT INTO `loan_borrowers` (`id`, `loan_application_id`, `full_name`, `account
 (9, 9, 'Kurt Francis Carpeso', '12388902312', '09959228310', 'franciscarpeso@gmail.com', NULL, NULL),
 (10, 10, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
 (11, 11, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
-(12, 12, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL);
+(12, 12, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
+(13, 13, 'Kurt Francis Carpeso', '10000', '09603281984', 'carpeso0958432@gmail.com', NULL, NULL),
+(14, 14, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -701,7 +706,9 @@ INSERT INTO `loan_documents` (`id`, `loan_application_id`, `file_name`, `proof_o
 (9, 9, 'valid_id_1775705771_69d71eabd6762.png', 'proof_income_1775705771_69d71eabd6bd3.png', 'coe_1775705771_69d71eabd6ff8.docx', NULL, NULL, NULL, NULL),
 (10, 10, 'valid_id_1775709054_69d72b7ee5afe.png', 'proof_income_1775709054_69d72b7ee65e1.png', 'coe_1775709054_69d72b7ee6d1a.docx', NULL, NULL, NULL, NULL),
 (11, 11, 'valid_id_1775709341_69d72c9d9326d.png', 'proof_income_1775709341_69d72c9d937d1.png', 'coe_1775709341_69d72c9d93d33.docx', NULL, NULL, NULL, NULL),
-(12, 12, 'valid_id_1775709650_69d72dd265e07.png', 'proof_income_1775709650_69d72dd266a11.png', 'coe_1775709650_69d72dd2670fe.docx', NULL, NULL, NULL, NULL);
+(12, 12, 'valid_id_1775709650_69d72dd265e07.png', 'proof_income_1775709650_69d72dd266a11.png', 'coe_1775709650_69d72dd2670fe.docx', NULL, NULL, NULL, NULL),
+(13, 13, 'valid_id_1776591577_69e4a2d9eb232.png', 'proof_income_1776591577_69e4a2d9f0b95.png', 'coe_1776591578_69e4a2da0630b.docx', NULL, NULL, NULL, NULL),
+(14, 14, 'valid_id_1776647868_69e57ebcf1d44.png', 'proof_income_1776647868_69e57ebcf3bcb.png', 'coe_1776647869_69e57ebd017cf.docx', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -735,7 +742,12 @@ CREATE TABLE `loan_payments` (
 
 INSERT INTO `loan_payments` (`id`, `loan_application_id`, `user_email`, `borrower_name`, `account_number`, `amount`, `payment_method`, `transaction_ref`, `payment_date`, `status`, `notes`, `processed_by`, `processed_by_id`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
 (1, 7, 'joannamariecarpeso@gmail.com', NULL, NULL, 1059.14, 'cheque', 'TXN-270204193044', '2026-04-13 03:34:58', 'Completed', NULL, NULL, NULL, NULL, NULL, '2026-04-13 01:34:58', '2026-04-13 12:49:03.269039'),
-(2, 11, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 882.61, 'cheque', 'TXN-E8BAD50D4257', '2026-04-13 20:53:12', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-13 12:53:12', '2026-04-13 12:53:12.973176');
+(2, 11, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 882.61, 'cheque', 'TXN-E8BAD50D4257', '2026-04-13 20:53:12', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-04-13 12:53:12', '2026-04-13 12:53:12.973176'),
+(3, 7, 'joannamariecarpeso@gmail.com', 'JOANNA MARIE OCENAR CARPESO', 'EG847478389', 4940.85, 'online', 'TXN-2D0048ADFCCB', '2026-04-19 12:56:28', 'Completed', NULL, 'JOANNA MARIE OCENAR CARPESO', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 04:56:28', '2026-04-19 04:56:28.886952'),
+(4, 7, 'joannamariecarpeso@gmail.com', 'JOANNA MARIE OCENAR CARPESO', 'EG847478389', 1059.14, 'cheque', 'TXN-33863EED3223', '2026-04-19 14:07:20', 'Completed', NULL, 'JOANNA MARIE OCENAR CARPESO', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 06:07:20', '2026-04-19 06:07:20.415671'),
+(5, 13, 'carpeso0958432@gmail.com', 'Kurt Francis Carpeso', '10000', 9000.00, 'cheque', 'TXN-91502D079F3A', '2026-04-19 17:56:18', 'Completed', NULL, 'Kurt Francis Carpeso', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 09:56:18', '2026-04-19 09:56:18.418022'),
+(6, 2, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 6000.00, 'online', 'TXN-5478221A0059', '2026-04-19 18:33:07', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 10:33:07', '2026-04-19 10:33:07.632917'),
+(7, 3, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 900000.00, 'cheque', 'TXN-1E9234E248D7', '2026-04-20 09:09:58', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-20 01:09:58', '2026-04-20 01:09:58.284228');
 
 -- --------------------------------------------------------
 
@@ -759,7 +771,8 @@ CREATE TABLE `loan_rejections` (
 INSERT INTO `loan_rejections` (`id`, `loan_application_id`, `rejected_by`, `rejected_by_user_id`, `rejected_at`, `rejection_remarks`) VALUES
 (1, 6, 'Kurt Francis Carpeso', 2, '2026-03-15 15:58:02', 'NOt Valid'),
 (2, 8, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:40:07', 'Test'),
-(3, 9, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:40:26', 'test again');
+(3, 9, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:40:26', 'test again'),
+(4, 12, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-14 08:28:48', 'Not Valid');
 
 -- --------------------------------------------------------
 
@@ -854,7 +867,9 @@ INSERT INTO `loan_valid_ids` (`id`, `loan_application_id`, `loan_valid_id_type`,
 (9, 9, 6, '343423222234'),
 (10, 10, 10, '23312311123790'),
 (11, 11, 9, '9901231231333'),
-(12, 12, 9, '31231313444341');
+(12, 12, 9, '31231313444341'),
+(13, 13, 8, '9933088088321'),
+(14, 14, 6, '1298419742198741');
 
 -- --------------------------------------------------------
 
@@ -1011,7 +1026,7 @@ CREATE TABLE `officers` (
 INSERT INTO `officers` (`id`, `employee_number`, `first_name`, `middle_name`, `surname`, `full_name`, `address`, `province_id`, `province_name`, `municipality_id`, `municipality_name`, `barangay_id`, `barangay_name`, `officer_email`, `contact_number`, `birthday`, `role`, `password_hash`, `status`, `created_at`, `updated_at`) VALUES
 (1, 'SA-0000001', 'Super', NULL, 'Admin', 'Super Admin', 'Evergreen Head Office', NULL, NULL, NULL, NULL, NULL, NULL, 'admin@evergreentrust.com', '0000-000-0000', '1990-01-01', 'Super Admin', '$2y$10$mu8MvOAqBpBQyci9kpKCM.pCdZ2j9eNR2AhNBXMBE3fSYu5LOQRn2', 'Active', '2026-04-05 11:33:33', NULL),
 (2, 'LO-0000001', 'KURT FRANCIS', 'OCENAR', 'CARPESO', 'KURT FRANCIS OCENAR CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', 'franciscarpeso@gmail.com', '09959228310', '2005-06-10', 'Loan Officer', '$2y$10$kqvPxntb4CKDuRqzgkIGR.7jL5pYQNguD7bjVv2g6fWR8ckcpAYEW', 'Active', '2026-04-05 23:12:16', '2026-04-12 22:33:00'),
-(3, 'LO-0000002', 'KURT FRANCIS', 'OCENAR', 'CARPESO', 'KURT FRANCIS OCENAR CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', 'carpeso0958432@gmail.com', '09959228310', '2005-06-10', 'Loan Officer', '$2y$10$dDSD6kRhXLar2y86DpjjcOvi3esup9nKBNQTtVQCdTxSxPB3Q1c.K', 'Active', '2026-04-05 23:23:35', NULL);
+(3, 'LO-0000002', 'KURT FRANCIS', 'OCENAR', 'CARPESO', 'KURT FRANCIS OCENAR CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', 'carpeso0958432@gmail.com', '09959228310', '2005-06-10', 'Loan Officer', '$2y$10$dDSD6kRhXLar2y86DpjjcOvi3esup9nKBNQTtVQCdTxSxPB3Q1c.K', 'Active', '2026-04-05 23:23:35', '2026-04-20 09:14:28');
 
 -- --------------------------------------------------------
 
@@ -1075,7 +1090,8 @@ INSERT INTO `users` (`id`, `first_name`, `middle_name`, `surname`, `address`, `p
 (1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kurt Francis Carpeso', 'franciscarpeso@gmail.com', '$2y$10$fflExrlI2bmm/.5yqsAyROjPvut/3nKNeUcUZ9/86EG3/ISFfXFfG', '12388902312', '09959228310', '2026-03-09 11:01:05'),
 (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kurt Francis Carpeso', 'carpeso0958432@gmail.com', '$2y$10$FmqeUbqcSgbluyG6DBeO3uYUqxek/S7lzU7K7QxB770RnyiBOF5SO', '10000', '09603281984', '2026-03-09 11:02:35'),
 (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kurt', 'kurtcarpeso02@gmail.com', '$2y$10$.aiTFvCoTMlkw/45f/9IQ.fwn45lzCcHE4iaTzqfFihF7Q9zsU29W', '1234455221', '09603281984', '2026-03-11 11:22:42'),
-(4, 'JOANNA MARIE', 'OCENAR', 'CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', '2001-08-29', 'JOANNA MARIE OCENAR CARPESO', 'joannamariecarpeso@gmail.com', '$2y$10$t0fgcUfjVgRy47UQc3UCPuSh6XI1BM7RP0prydn7FIvEK.bNyf3sW', 'EG847478389', '09983894613', '2026-04-02 11:26:55');
+(4, 'JOANNA MARIE', 'OCENAR', 'CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', '2001-08-29', 'JOANNA MARIE OCENAR CARPESO', 'joannamariecarpeso@gmail.com', '$2y$10$t0fgcUfjVgRy47UQc3UCPuSh6XI1BM7RP0prydn7FIvEK.bNyf3sW', 'EG847478389', '09983894613', '2026-04-02 11:26:55'),
+(5, 'Jiro', 'Flojo', 'Beringuela', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 432, 'Camp Aguinaldo', '2001-10-10', 'Jiro Flojo Beringuela', 'beringuelajirocordial@gmail.com', '$2y$10$q6TVZRJVc1M4KLtY4BdE3upiQMC5FrsjvWnluF2uZKVI0iUB2ABdy', 'EG905992297', '09603281984', '2026-04-20 01:41:51');
 
 --
 -- Indexes for dumped tables
@@ -1208,37 +1224,37 @@ ALTER TABLE `barangays`
 -- AUTO_INCREMENT for table `loan_applications`
 --
 ALTER TABLE `loan_applications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `loan_approvals`
 --
 ALTER TABLE `loan_approvals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `loan_borrowers`
 --
 ALTER TABLE `loan_borrowers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `loan_documents`
 --
 ALTER TABLE `loan_documents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `loan_payments`
 --
 ALTER TABLE `loan_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `loan_rejections`
 --
 ALTER TABLE `loan_rejections`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `loan_types`
@@ -1256,7 +1272,7 @@ ALTER TABLE `loan_valid_id`
 -- AUTO_INCREMENT for table `loan_valid_ids`
 --
 ALTER TABLE `loan_valid_ids`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `municipalities`
@@ -1280,7 +1296,7 @@ ALTER TABLE `provinces`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables

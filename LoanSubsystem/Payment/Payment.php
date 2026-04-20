@@ -41,7 +41,6 @@ try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
-    // Create with full schema matching loan_payments_schema.sql
     $pdo->exec("CREATE TABLE IF NOT EXISTS loan_payments (
         id                  INT UNSIGNED    NOT NULL AUTO_INCREMENT,
         loan_application_id INT             NOT NULL,
@@ -73,11 +72,10 @@ try {
     // Migrate old column name loan_id → loan_application_id if needed
     $oldCol = $pdo->query("SHOW COLUMNS FROM loan_payments LIKE 'loan_id'")->fetchAll();
     if (!empty($oldCol)) {
-        $pdo->exec("ALTER TABLE loan_payments
-                    CHANGE COLUMN `loan_id` `loan_application_id` INT NOT NULL");
+        $pdo->exec("ALTER TABLE loan_payments CHANGE COLUMN `loan_id` `loan_application_id` INT NOT NULL");
     }
 
-    // Add any columns that might be missing from an older table version
+    // Add any columns that might be missing
     $missingCols = [
         'borrower_name'   => "ALTER TABLE loan_payments ADD COLUMN borrower_name VARCHAR(150) DEFAULT NULL AFTER user_email",
         'account_number'  => "ALTER TABLE loan_payments ADD COLUMN account_number VARCHAR(50) DEFAULT NULL AFTER borrower_name",
@@ -90,11 +88,24 @@ try {
     ];
     foreach ($missingCols as $col => $sql) {
         $exists = $pdo->query("SHOW COLUMNS FROM loan_payments LIKE '$col'")->fetchAll();
-        if (empty($exists)) {
-            $pdo->exec($sql);
-        }
+        if (empty($exists)) $pdo->exec($sql);
     }
-} catch (PDOException $e) { /* non-fatal — table already fine */ }
+
+    // ── CATCH-UP: Close loans already fully paid but still Active/Approved ──
+    $pdo->exec("
+        UPDATE loan_applications la
+        INNER JOIN (
+            SELECT lp.loan_application_id, SUM(lp.amount) AS total_paid
+            FROM   loan_payments lp
+            WHERE  lp.status = 'Completed'
+            GROUP  BY lp.loan_application_id
+        ) paid ON paid.loan_application_id = la.id
+        SET    la.status = 'Closed', la.next_payment_due = NULL
+        WHERE  la.status IN ('Active', 'Approved')
+          AND  paid.total_paid >= la.loan_amount
+    ");
+
+} catch (PDOException $e) { /* non-fatal */ }
 
 // ─── HANDLE PAYMENT POST ──────────────────────────────────────────────────────
 $paymentResult = null;
@@ -110,27 +121,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
         $amount         = floatval($_POST['amount']       ?? 0);
         $user_email     = $_SESSION['user_email'];
 
-        // Capture audit fields
-        $ip_address = $_SERVER['HTTP_X_FORWARDED_FOR']
-                   ?? $_SERVER['REMOTE_ADDR']
-                   ?? null;
-        // Truncate to VARCHAR(45) max (handles IPv6 + port combos safely)
+        $ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
         $ip_address = $ip_address ? substr($ip_address, 0, 45) : null;
-        $user_agent = isset($_SERVER['HTTP_USER_AGENT'])
-                    ? substr($_SERVER['HTTP_USER_AGENT'], 0, 255)
-                    : null;
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? substr($_SERVER['HTTP_USER_AGENT'], 0, 255) : null;
 
         if (!in_array($payment_method, ['online', 'cheque'])) {
             $paymentError = "Invalid payment method.";
         } elseif ($loan_id <= 0 || $amount <= 0) {
             $paymentError = "Invalid loan or amount.";
         } else {
-            // ── Fetch loan + loan type + borrower details ──────────────────
             $stmt = $pdo->prepare("
                 SELECT la.*,
                        COALESCE(lt.name, CONCAT('Loan #', la.id)) AS loan_type_label,
                        lt.code AS loan_type_code,
-                       u.full_name     AS user_full_name,
+                       u.full_name      AS user_full_name,
                        u.account_number AS user_account_number
                 FROM   loan_applications la
                 LEFT JOIN loan_types lt ON lt.id = la.loan_type_id
@@ -147,10 +151,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                 $paymentError = "This loan is not eligible for payment (Status: "
                               . htmlspecialchars($loan['status']) . ").";
             } else {
-                // ── Resolve borrower display name & account number ─────────
-                // Fallback chain: users.full_name → loan_borrowers → session
-                $borrowerName   = $loan['user_full_name'] ?? null;
-                $accountNumber  = $loan['user_account_number'] ?? null;
+                // Resolve borrower name & account number
+                $borrowerName  = $loan['user_full_name'] ?? null;
+                $accountNumber = $loan['user_account_number'] ?? null;
 
                 if (!$borrowerName) {
                     $lb = $pdo->prepare("SELECT full_name, account_number FROM loan_borrowers WHERE loan_application_id = ? LIMIT 1");
@@ -161,9 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                 }
 
                 $txn_ref = 'TXN-' . strtoupper(substr(md5(uniqid(rand(), true)), 0, 12));
-                $paid_at = date('Y-m-d H:i:s.u'); // microsecond precision for DATETIME(6)
 
-                // ── Insert payment record with ALL schema fields ────────────
+                // ── INSERT payment record with status = 'Completed' ──────────
                 $ins = $pdo->prepare("
                     INSERT INTO loan_payments
                         (loan_application_id, user_email, borrower_name, account_number,
@@ -175,20 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                          'Completed', ?, NULL, ?, ?)
                 ");
                 $ins->execute([
-                    $loan_id,
-                    $user_email,
-                    $borrowerName,
-                    $accountNumber,
-                    $amount,
-                    $payment_method,
-                    $txn_ref,
-                    // processed_by: self-service so we store borrower name
-                    $borrowerName,
-                    $ip_address,
-                    $user_agent,
+                    $loan_id, $user_email, $borrowerName, $accountNumber,
+                    $amount, $payment_method, $txn_ref,
+                    $borrowerName, $ip_address, $user_agent,
                 ]);
 
-                // ── Total paid so far ──────────────────────────────────────
+                // ── Total paid so far (re-query after insert) ──────────────
                 $s = $pdo->prepare("
                     SELECT COALESCE(SUM(amount), 0) AS total_paid
                     FROM   loan_payments
@@ -197,10 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                 $s->execute([$loan_id]);
                 $totalPaid  = floatval($s->fetch(PDO::FETCH_ASSOC)['total_paid']);
                 $loanAmount = floatval($loan['loan_amount']);
-                $newStatus  = $loan['status'];
+                $newStatus  = $loan['status']; // keep current status as default
 
                 if ($totalPaid >= $loanAmount) {
-                    // ── Mark loan as Closed / Paid ─────────────────────────
+                    // ── FULLY PAID: Mark loan as Closed ────────────────────
                     $newStatus = 'Closed';
                     $pdo->prepare("
                         UPDATE loan_applications
@@ -209,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                         WHERE  id = ?
                     ")->execute([$loan_id]);
                 } else {
-                    // Advance next due date by one month
+                    // ── PARTIAL: Advance next_payment_due by one month ─────
                     $pdo->prepare("
                         UPDATE loan_applications
                         SET    next_payment_due =
@@ -231,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
                     'loan_amount'    => $loanAmount,
                     'remaining'      => $remaining,
                     'payment_method' => $payment_method,
-                    'paid_at'        => $paid_at,
+                    'paid_at'        => date('Y-m-d H:i:s'),
                     'new_status'     => $newStatus,
                     'is_fully_paid'  => ($totalPaid >= $loanAmount),
                     'borrower_name'  => $borrowerName,
@@ -245,8 +239,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pay')
     }
 }
 
-// ─── FETCH USER INFO & LOANS ──────────────────────────────────────────────────
+// ─── FETCH USER INFO, ACTIVE LOANS & PAYMENT HISTORY ─────────────────────────
 $loans      = [];
+$closedLoans = []; // For reference in history
 $userInfo   = [];
 $payHistory = [];
 
@@ -254,21 +249,18 @@ try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
-    // ── User info ──
     $uStmt = $pdo->prepare("
         SELECT full_name, user_email, account_number, contact_number
-        FROM   users
-        WHERE  user_email = ?
-        LIMIT  1
+        FROM   users WHERE user_email = ? LIMIT 1
     ");
     $uStmt->execute([$_SESSION['user_email']]);
     $userInfo = $uStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    // ── Active / Approved loans ──
+    // ── Only fetch Active/Approved loans (payable loans) ────────────────────
     $lStmt = $pdo->prepare("
         SELECT la.*,
                COALESCE(lt.name, CONCAT('Loan #', la.id)) AS loan_type,
-               lt.code                                      AS loan_type_code,
+               lt.code         AS loan_type_code,
                lt.interest_rate,
                lt.max_amount,
                lt.max_term_months
@@ -281,31 +273,27 @@ try {
     $lStmt->execute([$_SESSION['user_email']]);
     $loans = $lStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // ── Attach payment totals ──
+    // Attach payment totals to each active/approved loan
     foreach ($loans as &$loan) {
-        $loan['total_paid'] = 0.0;
-        $loan['remaining']  = floatval($loan['loan_amount'] ?? 0);
-        try {
-            $s = $pdo->prepare("
-                SELECT COALESCE(SUM(amount), 0) AS total_paid
-                FROM   loan_payments
-                WHERE  loan_application_id = ? AND status = 'Completed'
-            ");
-            $s->execute([$loan['id']]);
-            $row = $s->fetch(PDO::FETCH_ASSOC);
-            if ($row !== false) {
-                $loan['total_paid'] = floatval($row['total_paid']);
-                $loan['remaining']  = max(0, floatval($loan['loan_amount']) - $loan['total_paid']);
-            }
-        } catch (PDOException $inner) { /* keep safe defaults */ }
+        $s = $pdo->prepare("
+            SELECT COALESCE(SUM(amount), 0) AS total_paid
+            FROM   loan_payments
+            WHERE  loan_application_id = ? AND status = 'Completed'
+        ");
+        $s->execute([$loan['id']]);
+        $row = $s->fetch(PDO::FETCH_ASSOC);
+        $loan['total_paid'] = floatval($row['total_paid'] ?? 0);
+        $loan['remaining']  = max(0, floatval($loan['loan_amount']) - $loan['total_paid']);
     }
     unset($loan);
 
-    // ── Payment history (last 20) ──
+    // ── Payment history — last 20 records (ALL loans including Closed) ──────
     $hStmt = $pdo->prepare("
         SELECT lp.*,
+               la.status       AS loan_status,
+               la.loan_amount  AS loan_total_amount,
                COALESCE(lt.name, CONCAT('Loan #', lp.loan_application_id)) AS loan_type,
-               lt.code AS loan_type_code
+               lt.code         AS loan_type_code
         FROM   loan_payments lp
         JOIN   loan_applications la ON lp.loan_application_id = la.id
         LEFT JOIN loan_types lt     ON lt.id = la.loan_type_id
@@ -377,6 +365,7 @@ $root = '../../';
     .loan-badge { font-size: .72rem; font-weight: 700; padding: .2rem .65rem; border-radius: 1rem; text-transform: uppercase; letter-spacing: .5px; }
     .loan-badge.active   { background: #d4edda; color: #1a6a2a; }
     .loan-badge.approved { background: #cce5ff; color: #0050a0; }
+    .loan-badge.closed   { background: linear-gradient(90deg,#0a3b2f,#1a6b55); color: #e8c96b; }
 
     .progress-clean { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
     .progress-clean .bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--eg-accent), var(--eg-light)); transition: width .6s; }
@@ -422,65 +411,84 @@ $root = '../../';
 
     .info-box { background: #fff8e6; border-left: 4px solid #f0ad00; border-radius: .5rem; padding: .9rem 1rem; font-size: .85rem; color: #6b4e00; }
 
-    /* ── Success Overlay ── */
+    /* ── Success Overlay — compact & scrollable at 100% zoom ── */
     .success-overlay {
-      display: none;
-      position: fixed; inset: 0; z-index: 9999;
+      display: none; position: fixed; inset: 0; z-index: 9999;
       background: rgba(0,0,0,.6);
       align-items: center; justify-content: center;
+      padding: 10px; overflow-y: auto;
     }
     .success-overlay.show { display: flex; animation: fadeIn .3s; }
     .success-card {
-      background: #fff; border-radius: 1.5rem;
-      padding: 2.5rem 2rem; max-width: 500px; width: 92%;
-      text-align: center; animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
-      box-shadow: 0 16px 48px rgba(0,54,49,.18);
+      background: #fff; border-radius: 1.1rem;
+      padding: 1.1rem 1.4rem .9rem;
+      max-width: 440px; width: 100%; margin: auto;
+      text-align: center;
+      animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+      box-shadow: 0 12px 40px rgba(0,54,49,.2);
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--eg-border) transparent;
     }
-    .success-icon { width: 80px; height: 80px; background: linear-gradient(135deg, var(--eg-accent), var(--eg-light)); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; font-size: 2rem; color: #fff; }
-    .success-card h2 { font-family: var(--serif); font-size: 1.7rem; color: var(--eg-dark); margin: 0 0 .5rem; }
-    .txn-ref { background: var(--eg-pale); border: 1px solid var(--eg-border); border-radius: .5rem; padding: .5rem 1rem; font-family: 'Courier New', monospace; font-weight: 700; color: var(--eg-dark); font-size: .95rem; letter-spacing: 1px; }
+    .success-card::-webkit-scrollbar { width: 4px; }
+    .success-card::-webkit-scrollbar-thumb { background: var(--eg-border); border-radius: 4px; }
+    .success-icon {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--eg-accent), var(--eg-light));
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; margin: 0 auto .6rem;
+      font-size: 1.4rem; color: #fff;
+    }
+    .success-card h2 { font-family: var(--serif); font-size: 1.35rem; color: var(--eg-dark); margin: 0 0 .2rem; }
+    .success-card > p { font-size: .8rem; color: #888; margin-bottom: .4rem; }
+    .txn-ref {
+      background: var(--eg-pale); border: 1px solid var(--eg-border);
+      border-radius: .4rem; padding: .3rem .8rem;
+      font-family: 'Courier New', monospace; font-weight: 700;
+      color: var(--eg-dark); font-size: .82rem; letter-spacing: 1px;
+      display: inline-block; margin-bottom: .55rem;
+    }
+    .success-card .summary-row { padding: .25rem 0; font-size: .82rem; }
 
-    /* ── Fully Paid Banner ── */
+    /* ── Fully Paid Banner — compact ── */
     .fully-paid-banner {
       background: linear-gradient(135deg, #0a3b2f, #1a6b55);
-      border-radius: .9rem;
-      padding: 1.1rem 1.5rem;
-      margin-top: .9rem;
-      text-align: center;
+      border-radius: .7rem; padding: .65rem 1rem;
+      margin-top: .5rem; text-align: center;
     }
     .fully-paid-banner .fp-icon {
-      width: 52px; height: 52px;
-      background: rgba(255,255,255,.15);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto .65rem;
-      font-size: 1.5rem; color: #e8c96b;
+      width: 36px; height: 36px; background: rgba(255,255,255,.15);
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; margin: 0 auto .35rem;
+      font-size: 1rem; color: #e8c96b;
     }
-    .fully-paid-banner .fp-title {
-      font-family: var(--serif); font-size: 1.25rem;
-      color: #fff; margin-bottom: .2rem;
-    }
-    .fully-paid-banner .fp-sub {
-      font-size: .82rem; color: rgba(255,255,255,.7);
-    }
-    .fp-details-grid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: .5rem; margin-top: .75rem;
-    }
-    .fp-detail-chip {
-      background: rgba(255,255,255,.1);
-      border-radius: .5rem; padding: .5rem .75rem; text-align: left;
-    }
-    .fp-detail-chip .fp-chip-label { font-size: .68rem; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: .5px; }
-    .fp-detail-chip .fp-chip-val   { font-size: .88rem; font-weight: 700; color: #fff; }
+    .fully-paid-banner .fp-title { font-family: var(--serif); font-size: .95rem; color: #fff; margin-bottom: .1rem; }
+    .fully-paid-banner .fp-sub   { font-size: .72rem; color: rgba(255,255,255,.7); }
+    .fp-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; margin-top: .45rem; }
+    .fp-detail-chip { background: rgba(255,255,255,.1); border-radius: .35rem; padding: .3rem .55rem; text-align: left; }
+    .fp-detail-chip .fp-chip-label { font-size: .6rem; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: .5px; }
+    .fp-detail-chip .fp-chip-val   { font-size: .78rem; font-weight: 700; color: #fff; }
 
+    /* ── History table ── */
     .history-table th { background: var(--eg-dark); color: #fff; font-size: .78rem; text-transform: uppercase; letter-spacing: .6px; padding: .75rem 1rem; border: none; }
     .history-table td { padding: .7rem 1rem; font-size: .87rem; vertical-align: middle; border-color: #e8f4ee; }
     .history-table tbody tr:hover td { background: var(--eg-pale); }
+    /* Highlight fully-paid rows in history */
+    .history-table tbody tr.row-closed td { background: #f0faf6; }
+    .history-table tbody tr.row-closed:hover td { background: #e4f5ed; }
+
     .mpill { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .7rem; border-radius: 1rem; font-size: .77rem; font-weight: 600; }
     .mpill.online { background: #e8f4ff; color: #1a6fce; }
     .mpill.cheque { background: #fff5e6; color: #c47a00; }
     .spill { display: inline-block; padding: .2rem .7rem; border-radius: 1rem; font-size: .77rem; font-weight: 700; background: #d4edda; color: #1a6a2a; }
+    /* Loan status pill in history */
+    .loan-status-pill { display: inline-block; padding: .2rem .65rem; border-radius: 1rem; font-size: .72rem; font-weight: 700; }
+    .loan-status-pill.closed   { background: linear-gradient(90deg,#0a3b2f,#1a6b55); color: #e8c96b; }
+    .loan-status-pill.active   { background: #d4edda; color: #1a6a2a; }
+    .loan-status-pill.approved { background: #cce5ff; color: #0050a0; }
+    /* Paid-in-full chip inside history table */
+    .paid-full-chip { display: inline-flex; align-items: center; gap: 3px; background: linear-gradient(90deg,#0a3b2f,#1a6b55); color: #e8c96b; font-size: .65rem; font-weight: 700; padding: 1px 7px; border-radius: 6px; letter-spacing: .4px; text-transform: uppercase; margin-top: 3px; }
 
     .empty-state { text-align: center; padding: 4rem 1rem; }
     .empty-state i { font-size: 4rem; color: #c4e8da; margin-bottom: 1rem; display: block; }
@@ -524,8 +532,6 @@ if (file_exists($headerPath)) {
         <li class="breadcrumb-item active">Make a Payment</li>
       </ol>
     </nav>
-    <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/index.php#loan-dashboard" class="back-link mb-2 d-inline-flex">
-      <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
     <h1 class="mt-1"><i class="fas fa-credit-card me-2" style="font-size:.85em;"></i>Loan Payment</h1>
     <p>
@@ -549,17 +555,18 @@ if (file_exists($headerPath)) {
   <?php endif; ?>
 
   <?php if (empty($loans)): ?>
-  <div class="card-clean">
+  <!-- No active/approved loans — show history if any, otherwise empty state -->
+  <div class="card-clean mb-4">
     <div class="card-body-pad">
       <div class="empty-state">
         <i class="fas fa-file-invoice-dollar"></i>
-        <h3>No Active Loans Found</h3>
+        <h3>No Payable Loans</h3>
         <p style="color:#888;font-size:.9rem;">
           No active or approved loans found for<br>
           <code><?= htmlspecialchars($_SESSION['user_email']) ?></code>
         </p>
         <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/index.php#loan-services" class="btn-empty">Apply for a Loan</a>
-        <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/index.php#loan-dashboard" class="btn-empty ms-2" style="background:#555;">View Dashboard</a>
+        <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/Dashboard.php" class="btn-empty ms-2" style="background:#555;">View Dashboard</a>
       </div>
     </div>
   </div>
@@ -668,8 +675,7 @@ if (file_exists($headerPath)) {
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label-eg">Cardholder Name</label>
-                <input type="text" id="cardName" class="form-control-eg"
-                       placeholder="Full name on card"
+                <input type="text" id="cardName" class="form-control-eg" placeholder="Full name on card"
                        value="<?= htmlspecialchars($userInfo['full_name'] ?? '') ?>">
               </div>
               <div class="col-12">
@@ -797,25 +803,50 @@ if (file_exists($headerPath)) {
   </div><!-- /row -->
   <?php endif; ?>
 
-  <!-- PAYMENT HISTORY -->
+  <!-- ══ PAYMENT HISTORY (shown always if there are records) ══════════════════ -->
   <?php if (!empty($payHistory)): ?>
   <div class="card-clean mt-4">
-    <div class="card-header-green"><i class="fas fa-history"></i> Payment History</div>
+    <div class="card-header-green">
+      <i class="fas fa-history"></i> Payment History
+      <span style="margin-left:auto;font-size:.78rem;font-weight:400;opacity:.8;"><?= count($payHistory) ?> recent records</span>
+    </div>
     <div style="overflow-x:auto;">
       <table class="table mb-0 history-table">
         <thead>
           <tr>
-            <th>Txn Reference</th><th>Loan ID</th><th>Type</th>
-            <th>Amount</th><th>Method</th><th>Date</th><th>Status</th>
+            <th>Txn Reference</th>
+            <th>Loan ID</th>
+            <th>Type</th>
+            <th>Amount Paid</th>
+            <th>Method</th>
+            <th>Date</th>
+            <th>Txn Status</th>
+            <th>Loan Status</th>
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($payHistory as $ph): ?>
-          <tr>
-            <td><code style="font-size:.82rem;"><?= htmlspecialchars($ph['transaction_ref']) ?></code></td>
-            <td>#<?= $ph['loan_application_id'] ?></td>
+          <?php foreach ($payHistory as $ph):
+            $ls       = strtolower($ph['loan_status'] ?? 'active');
+            $rowCls   = ($ls === 'closed') ? ' row-closed' : '';
+            $loanAmt  = floatval($ph['loan_total_amount'] ?? 0);
+          ?>
+          <tr class="<?= $rowCls ?>">
+            <td>
+              <code style="font-size:.82rem;"><?= htmlspecialchars($ph['transaction_ref']) ?></code>
+              <?php if ($ls === 'closed'): ?>
+                <div class="paid-full-chip"><i class="fas fa-check me-1" style="font-size:.6rem;"></i> Paid in Full</div>
+              <?php endif; ?>
+            </td>
+            <td>#<?= (int)$ph['loan_application_id'] ?></td>
             <td><?= htmlspecialchars($ph['loan_type'] ?? '—') ?></td>
-            <td style="font-weight:700;color:var(--eg-dark);">₱<?= number_format($ph['amount'],2) ?></td>
+            <td style="font-weight:700;color:var(--eg-dark);">
+              ₱<?= number_format(floatval($ph['amount']),2) ?>
+              <?php if ($ls === 'closed' && $loanAmt > 0): ?>
+                <div style="font-size:.72rem;color:var(--eg-mid);font-weight:500;">
+                  Total: ₱<?= number_format($loanAmt,2) ?>
+                </div>
+              <?php endif; ?>
+            </td>
             <td>
               <span class="mpill <?= $ph['payment_method'] ?>">
                 <i class="fas fa-<?= $ph['payment_method']==='online'?'globe':'money-check' ?>"></i>
@@ -824,6 +855,11 @@ if (file_exists($headerPath)) {
             </td>
             <td style="font-size:.85rem;"><?= date('M d, Y H:i', strtotime($ph['payment_date'])) ?></td>
             <td><span class="spill"><?= htmlspecialchars($ph['status']) ?></span></td>
+            <td>
+              <span class="loan-status-pill <?= $ls ?>">
+                <?= $ls === 'closed' ? '✓ Closed / Paid' : htmlspecialchars($ph['loan_status']) ?>
+              </span>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
@@ -840,10 +876,10 @@ if (file_exists($headerPath)) {
   <div class="success-card">
     <div class="success-icon"><i class="fas fa-check"></i></div>
     <h2>Payment Successful!</h2>
-    <p style="color:#666;font-size:.9rem;">Your payment has been recorded.</p>
-    <div class="txn-ref mb-3"><?= htmlspecialchars($paymentResult['txn_ref']) ?></div>
+    <p style="color:#666;font-size:.78rem;margin-bottom:.35rem;">Your payment has been recorded.</p>
+    <div class="txn-ref mb-2"><?= htmlspecialchars($paymentResult['txn_ref']) ?></div>
 
-    <div class="mb-3 text-start" style="font-size:.88rem;">
+    <div class="mb-2 text-start" style="font-size:.82rem;border:1px solid #eef4ee;border-radius:.55rem;padding:.55rem .75rem;background:#fafffe;">
       <div class="summary-row">
         <span class="sl">Borrower</span>
         <span class="sv"><?= htmlspecialchars($paymentResult['borrower_name'] ?? '—') ?></span>
@@ -854,29 +890,27 @@ if (file_exists($headerPath)) {
         <span class="sv"><?= htmlspecialchars($paymentResult['account_number']) ?></span>
       </div>
       <?php endif; ?>
+      <div class="summary-row"><span class="sl">Loan ID</span>             <span class="sv">#<?= $paymentResult['loan_id'] ?></span></div>
+      <div class="summary-row"><span class="sl">Loan Type</span>           <span class="sv"><?= htmlspecialchars($paymentResult['loan_type']) ?></span></div>
+      <div class="summary-row"><span class="sl">Amount Paid</span>         <span class="sv" style="color:#2e7d32;">₱<?= number_format($paymentResult['amount_paid'],2) ?></span></div>
+      <div class="summary-row"><span class="sl">Total Paid to Date</span>  <span class="sv">₱<?= number_format($paymentResult['total_paid'],2) ?></span></div>
+      <div class="summary-row"><span class="sl">Loan Amount</span>         <span class="sv">₱<?= number_format($paymentResult['loan_amount'],2) ?></span></div>
       <div class="summary-row">
-        <span class="sl">Loan ID</span>
-        <span class="sv">#<?= $paymentResult['loan_id'] ?></span>
+        <span class="sl">Remaining</span>
+        <span class="sv" style="color:<?= $paymentResult['remaining'] > 0 ? '#c0392b' : '#2e7d32' ?>;">
+          ₱<?= number_format($paymentResult['remaining'],2) ?>
+        </span>
       </div>
+      <div class="summary-row"><span class="sl">Method</span>              <span class="sv"><?= ucfirst($paymentResult['payment_method']) ?></span></div>
       <div class="summary-row">
-        <span class="sl">Loan Type</span>
-        <span class="sv"><?= htmlspecialchars($paymentResult['loan_type']) ?></span>
-      </div>
-      <div class="summary-row">
-        <span class="sl">Amount Paid</span>
-        <span class="sv" style="color:#2e7d32;">₱<?= number_format($paymentResult['amount_paid'],2) ?></span>
-      </div>
-      <div class="summary-row">
-        <span class="sl">Total Paid to Date</span>
-        <span class="sv">₱<?= number_format($paymentResult['total_paid'],2) ?></span>
-      </div>
-      <div class="summary-row">
-        <span class="sl">Loan Amount</span>
-        <span class="sv">₱<?= number_format($paymentResult['loan_amount'],2) ?></span>
-      </div>
-      <div class="summary-row">
-        <span class="sl">Method</span>
-        <span class="sv"><?= ucfirst($paymentResult['payment_method']) ?></span>
+        <span class="sl">Loan Status</span>
+        <span class="sv">
+          <?php if ($paymentResult['is_fully_paid']): ?>
+            <span style="color:#0a3b2f;font-weight:700;">✓ Closed / Paid</span>
+          <?php else: ?>
+            <?= htmlspecialchars($paymentResult['new_status']) ?>
+          <?php endif; ?>
+        </span>
       </div>
       <?php if (!empty($paymentResult['ip_address'])): ?>
       <div class="summary-row">
@@ -887,41 +921,27 @@ if (file_exists($headerPath)) {
     </div>
 
     <?php if ($paymentResult['is_fully_paid']): ?>
-    <!-- ── Fully Paid Banner ── -->
     <div class="fully-paid-banner">
       <div class="fp-icon"><i class="fas fa-star"></i></div>
       <div class="fp-title">🎉 Loan Fully Paid!</div>
       <div class="fp-sub">This loan has been marked <strong>Closed</strong> in the system.</div>
       <div class="fp-details-grid">
-        <div class="fp-detail-chip">
-          <div class="fp-chip-label">New Status</div>
-          <div class="fp-chip-val">Closed / Paid</div>
-        </div>
-        <div class="fp-detail-chip">
-          <div class="fp-chip-label">Total Settled</div>
-          <div class="fp-chip-val">₱<?= number_format($paymentResult['total_paid'],2) ?></div>
-        </div>
-        <div class="fp-detail-chip">
-          <div class="fp-chip-label">Loan ID</div>
-          <div class="fp-chip-val">#<?= $paymentResult['loan_id'] ?></div>
-        </div>
-        <div class="fp-detail-chip">
-          <div class="fp-chip-label">Remaining</div>
-          <div class="fp-chip-val">₱0.00</div>
-        </div>
+        <div class="fp-detail-chip"><div class="fp-chip-label">New Status</div>  <div class="fp-chip-val">Closed / Paid</div></div>
+        <div class="fp-detail-chip"><div class="fp-chip-label">Total Settled</div><div class="fp-chip-val">₱<?= number_format($paymentResult['total_paid'],2) ?></div></div>
+        <div class="fp-detail-chip"><div class="fp-chip-label">Loan ID</div>     <div class="fp-chip-val">#<?= $paymentResult['loan_id'] ?></div></div>
+        <div class="fp-detail-chip"><div class="fp-chip-label">Remaining</div>   <div class="fp-chip-val">₱0.00</div></div>
       </div>
     </div>
     <?php endif; ?>
 
-    <div class="d-flex gap-2 mt-4 flex-wrap justify-content-center">
-      <button class="btn-pay"
-              style="width:auto;padding:.65rem 1.5rem;"
+    <div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+      <button class="btn-pay" style="width:auto;padding:.5rem 1.25rem;font-size:.88rem;"
               onclick="document.getElementById('successOverlay').classList.remove('show')">
         <i class="fas fa-redo me-1"></i> Another Payment
       </button>
-      <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/index.php#loan-dashboard"
+      <a href="http://localhost/Evergreen-loan-main/LoanSubsystem/Loan/Dashboard.php"
          class="btn-pay text-decoration-none"
-         style="width:auto;padding:.65rem 1.5rem;background:linear-gradient(135deg,#555,#333);">
+         style="width:auto;padding:.5rem 1.25rem;font-size:.88rem;background:linear-gradient(135deg,#555,#333);">
         <i class="fas fa-th-large me-1"></i> Dashboard
       </a>
     </div>

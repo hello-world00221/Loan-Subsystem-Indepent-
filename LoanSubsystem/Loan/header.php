@@ -268,19 +268,10 @@ nav {
     </div>
 
     <div class="nav-links">
-        <a href="#home">Home</a>
-        
-        <div class="dropdown">
-            <button class="dropbtn" onclick="toggleDropdown()">Cards ▼</button>
-            <div class="dropdown-content" id="cardsDropdown">
-                <a href="#credit-cards">Credit Cards</a>
-                <a href="#debit-cards">Debit Cards</a>
-                <a href="#prepaid-cards">Prepaid Cards</a>
-            </div>
-        </div>
-        
-        <a href="index.php">Loans</a>
-        <a href="#about">About Us</a>
+        <a href="index.php">Home</a>
+        <a href="ApplyLoan.php">Loans</a>
+        <a href="Dashboard.php">Dashboard</a>
+        <a href="AboutUs.php">About Us</a>
     </div>
 
     <div class="profile-actions">
