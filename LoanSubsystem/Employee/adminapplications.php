@@ -38,60 +38,32 @@ function buildLoanQuery(string $whereClause): string {
             la.purpose,
             la.status,
             la.created_at,
-
-            -- Loan type
             COALESCE(lt.name, 'Unknown Type')   AS loan_type_name,
-
-            -- Borrower profile
             COALESCE(lb.full_name, la.user_email) AS full_name,
             lb.account_number,
             lb.contact_number,
             lb.email,
             lb.job,
             lb.monthly_salary,
-
-            -- Valid ID
             lvi.valid_id_type,
             lvid.valid_id_number,
-
-            -- Approval
             lap.approved_at,
             lap.approved_by,
             lap.approved_by_user_id,
-
-            -- Rejection
             lr.rejected_at,
             lr.rejected_by,
             lr.rejection_remarks,
-
-            -- Documents
             ld.file_name,
             ld.proof_of_income,
             ld.coe_document
-
         FROM loan_applications la
-
-        LEFT JOIN loan_types lt
-            ON lt.id = la.loan_type_id
-
-        LEFT JOIN loan_borrowers lb
-            ON lb.loan_application_id = la.id
-
-        LEFT JOIN loan_valid_ids lvid
-            ON lvid.loan_application_id = la.id
-
-        LEFT JOIN loan_valid_id lvi
-            ON lvi.id = lvid.loan_valid_id_type
-
-        LEFT JOIN loan_approvals lap
-            ON lap.loan_application_id = la.id
-
-        LEFT JOIN loan_rejections lr
-            ON lr.loan_application_id = la.id
-
-        LEFT JOIN loan_documents ld
-            ON ld.loan_application_id = la.id
-
+        LEFT JOIN loan_types lt        ON lt.id = la.loan_type_id
+        LEFT JOIN loan_borrowers lb    ON lb.loan_application_id = la.id
+        LEFT JOIN loan_valid_ids lvid  ON lvid.loan_application_id = la.id
+        LEFT JOIN loan_valid_id lvi    ON lvi.id = lvid.loan_valid_id_type
+        LEFT JOIN loan_approvals lap   ON lap.loan_application_id = la.id
+        LEFT JOIN loan_rejections lr   ON lr.loan_application_id = la.id
+        LEFT JOIN loan_documents ld    ON ld.loan_application_id = la.id
         $whereClause
     ";
 }
@@ -104,16 +76,12 @@ function buildLoanQuery(string $whereClause): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Evergreen | Loan Applications</title>
   <link rel="icon" type="logo/png" href="pictures/logo.png" />
-
-  <!-- Bootstrap 5 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" />
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <!-- Existing stylesheet (kept for admin_header and shared styles) -->
   <link rel="stylesheet" href="adminstyle.css" />
 
   <style>
-    /* ── Brand colour tokens ───────────────────────────── */
+    /* ── Brand colour tokens ── */
     :root {
       --brand-dark:   #003631;
       --brand-mid:    #005a52;
@@ -124,39 +92,29 @@ function buildLoanQuery(string $whereClause): string {
       --active-clr:   #1565c0;
     }
 
-    /* ── Page layout ───────────────────────────────────── */
-    main {
-      padding: 1.5rem;
-    }
+    /* ── Page layout ── */
+    main { padding: 1.5rem; }
 
     h1 {
       color: var(--brand-dark);
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       font-weight: 700;
       margin-bottom: 1.5rem;
     }
 
-    /* ── Summary stat cards ────────────────────────────── */
+    /* ── Summary stat cards ── */
     .stat-card {
-      border: none;
-      border-radius: 12px;
-      padding: 1rem 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
+      border: none; border-radius: 12px;
+      padding: 1rem 1.1rem;
+      display: flex; align-items: center; gap: 0.75rem;
     }
     .stat-card .stat-icon {
-      width: 46px;
-      height: 46px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-      flex-shrink: 0;
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
     }
-    .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
-    .stat-card .stat-label { font-size: 0.75rem; color: #6c757d; margin-top: 2px; }
+    .stat-card .stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+    .stat-card .stat-label { font-size: 0.72rem; color: #6c757d; margin-top: 2px; }
 
     .stat-pending  { background: #fff3e0; }
     .stat-pending  .stat-icon { background: #ffe0b2; color: var(--pending-clr); }
@@ -174,241 +132,233 @@ function buildLoanQuery(string $whereClause): string {
     .stat-rejected .stat-icon { background: #ffcdd2; color: var(--rejected-clr); }
     .stat-rejected .stat-value { color: var(--rejected-clr); }
 
-    /* ── Section titles ────────────────────────────────── */
+    /* ── Section titles ── */
     .section-title {
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
       color: var(--brand-dark);
       border-left: 4px solid var(--brand-dark);
       padding-left: 0.65rem;
-      margin: 2rem 0 1rem;
+      margin: 1.75rem 0 0.85rem;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.4rem;
     }
 
-    /* ── Table card ────────────────────────────────────── */
+    /* ── Table card ── */
     .table-card {
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 1px 6px rgba(0,0,0,.08);
       overflow: hidden;
-      margin-bottom: 2rem;
+      margin-bottom: 1.75rem;
     }
 
-    /* ── Responsive table wrapper ──────────────────────── */
+    /* ── Responsive table wrapper ── */
     .table-responsive {
       width: 100%;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
 
-    /* ── Table styles ──────────────────────────────────── */
+    /* ── Table styles ── */
     .table-card table {
       width: 100%;
-      min-width: 680px;
+      min-width: 640px;
       border-collapse: collapse;
       font-size: 0.875rem;
       margin: 0;
     }
     .table-card thead th {
       background: var(--brand-dark);
-      color: #fff;
-      font-weight: 600;
-      padding: 0.75rem 1rem;
-      white-space: nowrap;
-      border: none;
+      color: #fff; font-weight: 600;
+      padding: 0.7rem 1rem;
+      white-space: nowrap; border: none;
     }
     .table-card tbody td {
-      padding: 0.7rem 1rem;
+      padding: 0.65rem 1rem;
       border-bottom: 1px solid #f0f0f0;
-      vertical-align: middle;
-      color: #333;
+      vertical-align: middle; color: #333;
     }
     .table-card tbody tr:last-child td { border-bottom: none; }
     .table-card tbody tr:hover { background: #f9fafb; }
     .empty-row td {
-      text-align: center;
-      color: #888;
+      text-align: center; color: #888;
       padding: 1.5rem !important;
     }
 
-    /* ── Status badges ─────────────────────────────────── */
+    /* ── Status badges ── */
     .badge-status {
-      display: inline-block;
-      padding: 0.3em 0.75em;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: .3px;
+      display: inline-block; padding: 0.28em 0.7em;
+      border-radius: 20px; font-size: 0.73rem;
+      font-weight: 600; letter-spacing: .3px;
+      white-space: nowrap;
     }
     .badge-pending  { background: #fff3e0; color: var(--pending-clr); }
     .badge-approved { background: #e8f5e9; color: var(--approved-clr); }
     .badge-active   { background: #e3f2fd; color: var(--active-clr);   }
     .badge-rejected { background: #ffebee; color: var(--rejected-clr); }
 
-    /* ── Action button ─────────────────────────────────── */
+    /* ── Action button ── */
     .btn-view {
-      background: var(--brand-dark);
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      padding: 0.35rem 0.85rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: background .18s;
-      white-space: nowrap;
+      background: var(--brand-dark); color: #fff;
+      border: none; border-radius: 7px;
+      padding: 0.3rem 0.8rem; font-size: 0.78rem;
+      cursor: pointer; transition: background .18s;
+      white-space: nowrap; display: inline-flex;
+      align-items: center; gap: 4px;
     }
     .btn-view:hover { background: var(--brand-mid); color: #fff; }
 
-    /* ── Modal overlay ─────────────────────────────────── */
+    /* ── Modal overlay ── */
     .modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 1055;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,.45);
-      padding: 1rem;
+      display: none; position: fixed; inset: 0;
+      z-index: 1055; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.45); padding: 1rem;
     }
     .modal.show { display: flex; }
 
-    /* ── Modal box ─────────────────────────────────────── */
+    /* ── Modal box ── */
     .status-modal {
-      background: #fff;
-      border-radius: 16px;
-      width: 100%;
-      max-width: 820px;
-      max-height: 90vh;
-      overflow-y: auto;
+      background: #fff; border-radius: 16px;
+      width: 100%; max-width: 820px;
+      max-height: 90vh; overflow-y: auto;
       position: relative;
       box-shadow: 0 8px 40px rgba(0,0,0,.18);
     }
 
     .modal-header-bar {
-      background: var(--brand-dark);
-      color: #fff;
-      padding: 1rem 1.5rem;
+      background: var(--brand-dark); color: #fff;
+      padding: 1rem 1.25rem;
       border-radius: 16px 16px 0 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
     }
-    .modal-header-bar h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+    .modal-header-bar h2 { margin: 0; font-size: 1rem; font-weight: 700; }
 
     .close-status {
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 1.4rem;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0;
+      background: none; border: none;
+      color: #fff; font-size: 1.3rem;
+      cursor: pointer; line-height: 1; padding: 0;
     }
     .close-status:hover { opacity: .7; }
 
-    .modal-body-pad { padding: 1.5rem; }
+    .modal-body-pad { padding: 1.25rem; }
 
-    /* ── Modal section heading ─────────────────────────── */
+    /* ── Modal section heading ── */
     .modal-section-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: .6px;
-      text-transform: uppercase;
-      color: var(--brand-dark);
-      margin: 1.25rem 0 0.65rem;
-      padding-bottom: 0.35rem;
+      font-size: 0.78rem; font-weight: 700;
+      letter-spacing: .6px; text-transform: uppercase;
+      color: var(--brand-dark); margin: 1.1rem 0 0.6rem;
+      padding-bottom: 0.3rem;
       border-bottom: 2px solid var(--brand-light);
     }
 
-    /* ── Info grid ─────────────────────────────────────── */
+    /* ── Info grid ── */
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 0.75rem 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.65rem 0.9rem;
     }
     .field label {
-      display: block;
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: #6c757d;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-      margin-bottom: 3px;
+      display: block; font-size: 0.7rem; font-weight: 600;
+      color: #6c757d; text-transform: uppercase;
+      letter-spacing: .4px; margin-bottom: 3px;
     }
     .field input[type="text"] {
       width: 100%;
-      background: #f8f9fa;
-      border: 1px solid #dee2e6;
-      border-radius: 7px;
-      padding: 0.45rem 0.65rem;
-      font-size: 0.875rem;
-      color: #212529;
-      outline: none;
+      background: #f8f9fa; border: 1px solid #dee2e6;
+      border-radius: 7px; padding: 0.4rem 0.6rem;
+      font-size: 0.85rem; color: #212529; outline: none;
     }
 
-    /* ── Document view buttons ─────────────────────────── */
+    /* ── Document view buttons ── */
     .view-doc-btn {
-      background: var(--brand-light);
-      color: var(--brand-dark);
-      border: 1px solid #b2dfdb;
-      border-radius: 7px;
-      padding: 0.4rem 0.85rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: background .18s;
-      width: 100%;
+      background: var(--brand-light); color: var(--brand-dark);
+      border: 1px solid #b2dfdb; border-radius: 7px;
+      padding: 0.4rem 0.75rem; font-size: 0.78rem;
+      cursor: pointer; transition: background .18s; width: 100%;
+      display: inline-flex; align-items: center; gap: 6px;
     }
     .view-doc-btn:hover:not(:disabled) { background: #c8e6c9; }
     .view-doc-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-    /* ── Modal footer buttons ──────────────────────────── */
+    /* ── Modal footer buttons ── */
     .modal-footer-bar {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.65rem;
-      padding: 1rem 1.5rem;
+      display: flex; justify-content: flex-end; gap: 0.6rem;
+      padding: 0.9rem 1.25rem;
       border-top: 1px solid #f0f0f0;
       flex-wrap: wrap;
+      position: sticky; bottom: 0;
+      background: #fff; z-index: 10;
     }
     .back-status {
-      background: #f0f0f0;
-      color: #333;
-      border: none;
-      border-radius: 8px;
-      padding: 0.5rem 1.1rem;
-      font-size: 0.875rem;
-      cursor: pointer;
+      background: #f0f0f0; color: #333; border: none;
+      border-radius: 8px; padding: 0.48rem 1rem;
+      font-size: 0.85rem; cursor: pointer;
     }
     .back-status:hover { background: #e0e0e0; }
     .approve-btn {
-      background: var(--approved-clr);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 0.5rem 1.2rem;
-      font-size: 0.875rem;
-      cursor: pointer;
-      transition: background .18s;
+      background: var(--approved-clr); color: #fff;
+      border: none; border-radius: 8px;
+      padding: 0.48rem 1.1rem; font-size: 0.85rem;
+      cursor: pointer; transition: background .18s;
     }
     .approve-btn:hover { background: #1b5e20; }
     .reject-btn {
-      background: var(--rejected-clr);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 0.5rem 1.2rem;
-      font-size: 0.875rem;
-      cursor: pointer;
-      transition: background .18s;
+      background: var(--rejected-clr); color: #fff;
+      border: none; border-radius: 8px;
+      padding: 0.48rem 1.1rem; font-size: 0.85rem;
+      cursor: pointer; transition: background .18s;
     }
     .reject-btn:hover { background: #7f0000; }
 
-    /* ── Responsive tweaks ─────────────────────────────── */
-    @media (max-width: 576px) {
-      main { padding: 1rem; }
+    /* ════════════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════════════ */
+
+    /* Tablet */
+    @media (max-width: 768px) {
+      main { padding: 1.1rem; }
+      h1 { font-size: 1.25rem; margin-bottom: 1.1rem; }
+      .info-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    }
+
+    /* Large mobile */
+    @media (max-width: 600px) {
+      main { padding: 0.9rem; }
+      h1 { font-size: 1.1rem; }
+
+      /* Stat cards: 2 per row */
+      .row.g-3 > .col-6 { flex: 0 0 50%; max-width: 50%; }
+      .stat-card { padding: 0.75rem 0.85rem; gap: 0.6rem; }
+      .stat-card .stat-icon { width: 36px; height: 36px; font-size: 0.95rem; }
+      .stat-card .stat-value { font-size: 1.2rem; }
+
+      .info-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+      .modal-footer-bar { justify-content: stretch; gap: 0.5rem; }
+      .modal-footer-bar button { flex: 1; text-align: center; justify-content: center; }
+      .status-modal { border-radius: 12px; }
+      .modal-header-bar { border-radius: 12px 12px 0 0; padding: 0.85rem 1rem; }
+      .modal-header-bar h2 { font-size: 0.92rem; }
+    }
+
+    /* Small mobile */
+    @media (max-width: 480px) {
+      main { padding: 0.75rem; }
+      .modal { padding: 0.5rem; }
+      .modal-body-pad { padding: 0.9rem; }
       .info-grid { grid-template-columns: 1fr; }
-      .modal-footer-bar { justify-content: stretch; }
-      .modal-footer-bar button { flex: 1; }
-      h1 { font-size: 1.25rem; }
+      .field input[type="text"] { font-size: 0.82rem; padding: 0.35rem 0.5rem; }
+    }
+
+    /* Very small */
+    @media (max-width: 360px) {
+      main { padding: 0.6rem; }
+      h1 { font-size: 1rem; }
+      .stat-card .stat-value { font-size: 1.1rem; }
+      .modal-footer-bar { padding: 0.75rem; }
     }
   </style>
 </head>
@@ -417,7 +367,7 @@ function buildLoanQuery(string $whereClause): string {
 <main>
   <h1><i class="fas fa-file-alt me-2"></i>Loan Applications Management</h1>
 
-  <!-- ── Summary Stat Cards ──────────────────────────────────────────────────── -->
+  <!-- ── Summary Stat Cards ── -->
   <div class="row g-3 mb-2">
     <div class="col-6 col-sm-6 col-md-3">
       <div class="stat-card stat-pending">
@@ -457,11 +407,11 @@ function buildLoanQuery(string $whereClause): string {
     </div>
   </div>
 
-  <!-- ── PENDING TABLE ──────────────────────────────────────────────────────── -->
+  <!-- ── PENDING TABLE ── -->
   <h2 class="section-title">
     <i class="fas fa-clipboard-list me-1"></i>
     Pending Applications
-    <span class="badge-status badge-pending ms-2"><?= $counts['Pending'] ?></span>
+    <span class="badge-status badge-pending"><?= $counts['Pending'] ?></span>
   </h2>
 
   <div class="table-card">
@@ -497,7 +447,7 @@ function buildLoanQuery(string $whereClause): string {
                 <td><span class="badge-status badge-pending">Pending</span></td>
                 <td>
                   <button class="btn-view" onclick="viewLoanApplication(<?= (int)$row['id'] ?>, 'pending')">
-                    <i class="fas fa-eye me-1"></i>View
+                    <i class="fas fa-eye"></i>View
                   </button>
                 </td>
               </tr>
@@ -510,11 +460,11 @@ function buildLoanQuery(string $whereClause): string {
     </div>
   </div>
 
-  <!-- ── APPROVED TABLE ─────────────────────────────────────────────────────── -->
+  <!-- ── APPROVED TABLE ── -->
   <h2 class="section-title">
     <i class="fas fa-check-circle me-1"></i>
     Approved Applications — Awaiting Claim
-    <span class="badge-status badge-approved ms-2"><?= $counts['Approved'] ?></span>
+    <span class="badge-status badge-approved"><?= $counts['Approved'] ?></span>
   </h2>
 
   <div class="table-card">
@@ -550,7 +500,7 @@ function buildLoanQuery(string $whereClause): string {
                 <td><span class="badge-status badge-approved">Approved</span></td>
                 <td>
                   <button class="btn-view" onclick="viewLoanApplication(<?= (int)$row['id'] ?>, 'approved')">
-                    <i class="fas fa-eye me-1"></i>View
+                    <i class="fas fa-eye"></i>View
                   </button>
                 </td>
               </tr>
@@ -565,7 +515,7 @@ function buildLoanQuery(string $whereClause): string {
   </div>
 </main>
 
-<!-- ── Application Details Modal ────────────────────────────────────────────── -->
+<!-- ── Application Details Modal ── -->
 <div id="statusModal" class="modal">
   <div class="status-modal">
 
@@ -616,7 +566,7 @@ function buildLoanQuery(string $whereClause): string {
           <div class="field">
             <label>Valid ID</label>
             <button type="button" id="view-valid-id-btn" class="view-doc-btn" onclick="viewDocument('valid_id')">
-              <i class="fas fa-id-card me-1"></i>View Document
+              <i class="fas fa-id-card"></i>View Document
             </button>
           </div>
         </div>
@@ -624,7 +574,7 @@ function buildLoanQuery(string $whereClause): string {
           <div class="field">
             <label>Proof of Income</label>
             <button type="button" id="view-proof-income-btn" class="view-doc-btn" onclick="viewDocument('proof_of_income')">
-              <i class="fas fa-file-invoice me-1"></i>View Document
+              <i class="fas fa-file-invoice"></i>View Document
             </button>
           </div>
         </div>
@@ -632,7 +582,7 @@ function buildLoanQuery(string $whereClause): string {
           <div class="field">
             <label>COE</label>
             <button type="button" id="view-coe-btn" class="view-doc-btn" onclick="viewDocument('coe_document')">
-              <i class="fas fa-certificate me-1"></i>View Document
+              <i class="fas fa-certificate"></i>View Document
             </button>
           </div>
         </div>
@@ -650,11 +600,10 @@ function buildLoanQuery(string $whereClause): string {
   </div>
 </div>
 
-<!-- Bootstrap 5 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
 
 <script>
-  /* ── All original logic below — completely untouched ── */
+  /* ── All original logic — completely untouched ── */
 
   let currentLoanId    = null;
   let currentLoanStage = 'pending';
@@ -681,7 +630,6 @@ function buildLoanQuery(string $whereClause): string {
 
         currentClientName = data.full_name || '';
 
-        // Account Information
         document.getElementById('modal-full-name').value      = data.full_name       || '';
         document.getElementById('modal-account-number').value = data.account_number  || '';
         document.getElementById('modal-loan-id').value        = data.id              || '';
@@ -694,7 +642,6 @@ function buildLoanQuery(string $whereClause): string {
           ? new Date(data.created_at).toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'})
           : 'N/A';
 
-        // Loan Details
         document.getElementById('modal-loan-type').value       = data.loan_type       || '';
         document.getElementById('modal-loan-term').value       = data.loan_terms      || '';
         document.getElementById('modal-loan-amount').value     =
@@ -703,7 +650,6 @@ function buildLoanQuery(string $whereClause): string {
         document.getElementById('modal-valid-id-type').value   = data.valid_id_type   || 'N/A';
         document.getElementById('modal-valid-id-number').value = data.valid_id_number || 'N/A';
 
-        // Payment Summary
         document.getElementById('modal-monthly-payment').value =
           '₱' + parseFloat(data.monthly_payment || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
         document.getElementById('modal-total-payable').value   =
@@ -713,7 +659,6 @@ function buildLoanQuery(string $whereClause): string {
           : 'N/A';
         document.getElementById('modal-status').value          = data.status || '';
 
-        // Documents
         currentValidId     = data.file_name       || data.file_url || '';
         currentProofIncome = data.proof_of_income || '';
         currentCoeDocument = data.coe_document    || '';
@@ -722,7 +667,6 @@ function buildLoanQuery(string $whereClause): string {
         document.getElementById('view-proof-income-btn').disabled = !currentProofIncome;
         document.getElementById('view-coe-btn').disabled          = !currentCoeDocument;
 
-        // Show/hide approve button depending on stage
         const approveBtn = document.getElementById('approve-btn');
         approveBtn.innerHTML = stage === 'approved'
           ? '<i class="fas fa-bolt me-1"></i>Activate Loan'

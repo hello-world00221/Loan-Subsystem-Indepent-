@@ -4,27 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// ─── DEBUG: Uncomment these lines temporarily to see what session keys exist ──
-// echo '<pre>'; print_r($_SESSION); echo '</pre>'; die();
-
 // ─── Role-based access guard ──────────────────────────────────────────────────
-//
-// VALID SESSION FORMATS ACCEPTED:
-//
-//   Format A – Legacy login.php path:
-//       $_SESSION['user_id'] exists
-//       AND ($_SESSION['role'] OR $_SESSION['user_role']) === 'admin'
-//
-//   Format B – Employeelogin.php → Loan Officer path:
-//       $_SESSION['officer_id'] exists
-//       AND $_SESSION['admin_id'] does NOT exist
-//       (Loan Officers have officer_id set but NOT admin_id)
-//
-//   Format C – Employeelogin.php → SuperAdmin path:
-//       $_SESSION['admin_id'] exists  →  BLOCKED here on purpose
-//       SuperAdmins go to Employeedashboard.php, never adminindex.php
-
-// Check Format A
 $_isLegacyAdmin = (
     isset($_SESSION['user_id']) &&
     in_array(
@@ -34,14 +14,11 @@ $_isLegacyAdmin = (
     )
 );
 
-// Check Format B — Loan Officer via Employeelogin.php
-// officer_id must exist AND admin_id must NOT exist
 $_isLoanOfficer = (
     !empty($_SESSION['officer_id']) &&
     (empty($_SESSION['admin_id']) || $_SESSION['admin_id'] === null)
 );
 
-// If neither format matches → reject
 if (!$_isLegacyAdmin && !$_isLoanOfficer) {
     session_destroy();
     header('Location: login.php');
@@ -68,7 +45,6 @@ $_headerUserName  = htmlspecialchars($_SESSION['user_name'] ?? 'Staff');
 $_headerUserRole  = 'Loan Officer';
 $_headerEmpNum    = htmlspecialchars($_SESSION['loan_officer_id'] ?? '');
 
-// Initials from name (up to 2 words)
 $_headerInitials  = '';
 foreach (array_slice(explode(' ', trim($_SESSION['user_name'] ?? 'Staff')), 0, 2) as $_w) {
     $_headerInitials .= strtoupper($_w[0] ?? '');
@@ -84,7 +60,6 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="pictures/logo.png" />
 
-  <!-- Bootstrap + Icons + Fonts (same stack as Employeedashboard) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -93,7 +68,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
 
   <style>
     /* ══════════════════════════════════════════════════════════════════════
-       DESIGN TOKENS  (mirrors Employeedashboard.php)
+       DESIGN TOKENS
     ═══════════════════════════════════════════════════════════════════════ */
     :root {
       --eg-forest:    #0a3b2f;
@@ -145,6 +120,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
       padding: 20px 22px 16px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       text-decoration: none;
+      flex-shrink: 0;
     }
     .eg-sidebar-logo-icon {
       width: 36px; height: 36px;
@@ -209,6 +185,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
       margin-top: auto;
       border-top: 1px solid rgba(255,255,255,0.08);
       padding: 16px 22px;
+      flex-shrink: 0;
     }
     .eg-sidebar-footer-user { display: flex; align-items: center; gap: 10px; }
     .eg-sidebar-avatar {
@@ -218,7 +195,10 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
       font-size: 13px; font-weight: 700; color: var(--eg-deep);
       flex-shrink: 0;
     }
-    .eg-sidebar-uname { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.2; }
+    .eg-sidebar-uname {
+      font-size: 13px; font-weight: 600; color: #fff; line-height: 1.2;
+      word-break: break-word;
+    }
     .eg-sidebar-urole { font-size: 11px; color: var(--eg-gold-l); }
 
     /* Mobile overlay */
@@ -235,16 +215,22 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
       height: var(--eg-topbar-h);
       background: linear-gradient(90deg, var(--eg-deep) 0%, var(--eg-forest) 100%);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 26px; z-index: 1030;
+      padding: 0 20px; z-index: 1030;
       box-shadow: 0 2px 16px rgba(6,38,32,0.28);
+      gap: 12px;
     }
-    .eg-topbar-left { display: flex; align-items: center; gap: 14px; }
+    .eg-topbar-left {
+      display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0;
+      min-width: 0;
+    }
 
     .eg-hamburger {
       background: none; border: none;
       color: rgba(255,255,255,0.80); font-size: 22px;
       cursor: pointer; padding: 4px 8px; border-radius: 6px;
       transition: color .2s, background .2s; display: none;
+      flex-shrink: 0;
     }
     @media (max-width: 991px) { .eg-hamburger { display: flex; } }
     .eg-hamburger:hover { color: var(--eg-gold-l); background: rgba(255,255,255,0.08); }
@@ -265,41 +251,81 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
     .eg-breadcrumb .bc-sep { opacity: 0.4; }
     .eg-breadcrumb .bc-active { color: #fff; font-weight: 600; }
 
-    /* Top-bar right: datetime + profile */
-    .eg-topbar-right { display: flex; align-items: center; gap: 16px; }
+    /* ── Top-bar right ── */
+    .eg-topbar-right {
+      display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0;
+      min-width: 0;
+    }
 
     .eg-datetime {
       display: flex; flex-direction: column; align-items: flex-end;
       color: rgba(255,255,255,0.70); font-size: 12px; line-height: 1.4;
+      flex-shrink: 0;
     }
     .eg-datetime strong { font-size: 13px; color: #fff; font-weight: 600; }
     @media (max-width: 640px) { .eg-datetime { display: none; } }
 
-    .eg-profile-wrap { position: relative; }
+    /* ── Profile button — KEY FIX: full name always visible ── */
+    .eg-profile-wrap { position: relative; flex-shrink: 0; }
+
     .eg-profile-btn {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 8px;
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 10px; padding: 6px 14px 6px 8px;
+      border-radius: 10px;
+      padding: 6px 12px 6px 8px;
       color: #fff; cursor: pointer; transition: background .2s;
       font-family: 'DM Sans', sans-serif;
+      white-space: nowrap;
+      max-width: none;        /* never truncate */
+      width: auto;
     }
     .eg-profile-btn:hover { background: rgba(255,255,255,0.15); }
+
     .eg-avatar {
       width: 32px; height: 32px; border-radius: 50%;
       background: var(--eg-gold);
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700; color: var(--eg-deep); flex-shrink: 0;
+      font-size: 12px; font-weight: 700; color: var(--eg-deep);
+      flex-shrink: 0;
     }
+
     .eg-profile-info { text-align: left; }
-    .eg-profile-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+    .eg-profile-name {
+      font-size: 13px; font-weight: 600; line-height: 1.2;
+      white-space: nowrap;       /* keep on one line on desktop */
+    }
     .eg-profile-role { font-size: 11px; color: var(--eg-gold-l); line-height: 1.2; }
 
+    /* On medium screens: allow name to wrap rather than truncate */
+    @media (max-width: 767px) {
+      .eg-profile-name {
+        white-space: normal;
+        max-width: 160px;
+        line-height: 1.3;
+      }
+    }
+
+    /* On very small screens: hide text, show only avatar */
+    @media (max-width: 480px) {
+      .eg-profile-info { display: none; }
+      .eg-profile-btn {
+        padding: 5px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.10);
+        border-color: rgba(255,255,255,0.20);
+      }
+      /* Hide chevron too */
+      .eg-profile-btn .bi-chevron-down { display: none; }
+    }
+
+    /* Profile dropdown */
     .eg-profile-dropdown {
       position: absolute; top: calc(100% + 8px); right: 0;
       background: #fff; border-radius: 12px;
       box-shadow: 0 8px 32px rgba(6,38,32,0.18);
-      min-width: 190px; overflow: hidden; z-index: 2000;
+      min-width: 210px; overflow: hidden; z-index: 2000;
       display: none;
       animation: dropIn .18s ease;
       border: 1px solid var(--eg-border);
@@ -315,6 +341,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
     }
     .eg-profile-dropdown .dd-header .dd-name {
       font-size: 13.5px; font-weight: 700; color: var(--eg-text);
+      word-break: break-word;
     }
     .eg-profile-dropdown .dd-header .dd-empnum { font-size: 11px; color: var(--eg-muted); }
     .eg-profile-dropdown a {
@@ -331,10 +358,43 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
 
     /* ══ MAIN WRAPPER ═════════════════════════════════════════════════════ */
     .eg-main { min-height: 100vh; transition: margin-left .28s; }
-    .eg-content { padding: 30px 30px 48px; }
+    .eg-content { padding: 28px 28px 48px; }
 
+    /* ══════════════════════════════════════════════════════
+       RESPONSIVE BREAKPOINTS
+    ══════════════════════════════════════════════════════ */
+
+    /* Tablet landscape */
+    @media (max-width: 1199px) {
+      :root { --eg-sidebar-w: 240px; }
+      .eg-content { padding: 24px 22px 40px; }
+    }
+
+    /* Tablet portrait — sidebar becomes drawer */
+    @media (max-width: 991px) {
+      :root { --eg-sidebar-w: 260px; }
+      .eg-main { margin-left: 0 !important; }
+      .eg-content { padding: 22px 20px 40px; }
+      .eg-topbar { padding: 0 16px; }
+    }
+
+    /* Large mobile */
+    @media (max-width: 767px) {
+      .eg-content { padding: 18px 16px 36px; }
+      .eg-topbar { padding: 0 14px; gap: 8px; }
+    }
+
+    /* Small mobile */
     @media (max-width: 575px) {
-      .eg-content { padding: 18px 14px 36px; }
+      .eg-content { padding: 14px 12px 32px; }
+      .eg-topbar { padding: 0 12px; height: 56px; }
+      :root { --eg-topbar-h: 56px; }
+    }
+
+    /* Very small */
+    @media (max-width: 360px) {
+      .eg-topbar { padding: 0 10px; }
+      .eg-content { padding: 12px 10px 28px; }
     }
   </style>
 </head>
@@ -355,7 +415,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
     </div>
   </a>
 
-  <div style="padding: 10px 0; flex:1;">
+  <div style="padding: 10px 0; flex:1; overflow-y:auto;">
     <button class="eg-nav-toggle-btn" id="navToggleBtn" onclick="toggleNav()">
       <i class="bi bi-grid-fill" style="font-size:11px;"></i>
       Navigation
@@ -376,7 +436,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
   <div class="eg-sidebar-footer">
     <div class="eg-sidebar-footer-user">
       <div class="eg-sidebar-avatar"><?= $_headerInitials ?></div>
-      <div>
+      <div style="min-width:0;">
         <div class="eg-sidebar-uname"><?= $_headerUserName ?></div>
         <div class="eg-sidebar-urole"><?= $_headerUserRole ?></div>
       </div>
@@ -416,13 +476,13 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
       </div>
 
       <div class="eg-profile-wrap">
-        <button class="eg-profile-btn" onclick="toggleProfileDropdown()" id="profileToggleBtn">
+        <button class="eg-profile-btn" onclick="toggleProfileDropdown()" id="profileToggleBtn" aria-expanded="false">
           <div class="eg-avatar"><?= $_headerInitials ?></div>
           <div class="eg-profile-info">
             <div class="eg-profile-name"><?= $_headerUserName ?></div>
             <div class="eg-profile-role"><?= $_headerUserRole ?></div>
           </div>
-          <i class="bi bi-chevron-down ms-1" style="font-size:11px;opacity:.7;"></i>
+          <i class="bi bi-chevron-down ms-1" style="font-size:11px;opacity:.7;flex-shrink:0;"></i>
         </button>
 
         <div class="eg-profile-dropdown" id="profileDropdown">
@@ -438,7 +498,7 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
     </div>
   </header>
 
-  <!-- PAGE CONTENT goes below (adminindex.php inserts <main> here) -->
+  <!-- PAGE CONTENT injected here by child pages -->
 
   <script>
     /* ── Sidebar ── */
@@ -464,13 +524,35 @@ $_currentPage = basename($_SERVER['PHP_SELF']);
 
     /* ── Profile dropdown ── */
     function toggleProfileDropdown() {
-      document.getElementById('profileDropdown').classList.toggle('show');
+      const dd  = document.getElementById('profileDropdown');
+      const btn = document.getElementById('profileToggleBtn');
+      const isOpen = dd.classList.toggle('show');
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     }
     document.addEventListener('click', function (e) {
       const wrap = document.querySelector('.eg-profile-wrap');
-      if (wrap && !wrap.contains(e.target)) {
-        document.getElementById('profileDropdown').classList.remove('show');
+      const dd   = document.getElementById('profileDropdown');
+      const btn  = document.getElementById('profileToggleBtn');
+      if (wrap && !wrap.contains(e.target) && dd) {
+        dd.classList.remove('show');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
       }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const dd  = document.getElementById('profileDropdown');
+        const btn = document.getElementById('profileToggleBtn');
+        if (dd && dd.classList.contains('show')) {
+          dd.classList.remove('show');
+          if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+        closeSidebar();
+      }
+    });
+
+    /* ── Auto-close sidebar on resize to desktop ── */
+    window.addEventListener('resize', function() {
+      if (window.innerWidth >= 992) closeSidebar();
     });
 
     /* ── Live clock (Manila time) ── */

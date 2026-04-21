@@ -333,8 +333,9 @@ $flashError   = $error   ? json_encode($error)   : 'null';
     </button>
     <div class="eg-nav-collapse" id="navCollapse">
       <a href="Employeedashboard.php" class="eg-nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
-      <a href="add_officer.php" class="eg-nav-item active"><i class="bi bi-person-gear"></i> Account Management</a>
-      <a href="#audit-logs" class="eg-nav-item"><i class="bi bi-journal-text"></i> Audit Logs</a>
+      <a href="add_officer.php" class="eg-nav-item "><i class="bi bi-person-gear"></i> Account Management</a>
+      <a href="audit_logs.php" class="eg-nav-item"><i class="bi bi-journal-text"></i> Audit Logs</a>
+      <a href="manage_payments.php" class="eg-nav-item "><i class="bi bi-credit-card-2-front"></i> Manage Paymentss</a>
     </div>
   </div>
 
@@ -382,9 +383,7 @@ $flashError   = $error   ? json_encode($error)   : 'null';
         <div class="dd-header">
           <div class="dd-name"><?= $adminName ?></div>
           <div class="dd-empnum"><?= $adminEmpNum ?></div>
-        </div>
-        <a href="profile.php"><i class="bi bi-person"></i> My Profile</a>
-        <a href="settings.php"><i class="bi bi-gear"></i> Settings</a>
+      </div>
         <div class="divider"></div>
         <a href="logout.php" class="logout-link"><i class="bi bi-box-arrow-right"></i> Sign Out</a>
       </div>

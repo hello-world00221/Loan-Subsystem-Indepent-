@@ -29,27 +29,27 @@ if ($statusResult) {
 $totalLoans = array_sum($counts);
 ?>
 
-<!-- Page-specific title (head already opened in admin_header.php) -->
+<!-- Page-specific title -->
 <title>Evergreen | Loan Dashboard</title>
 <link rel="stylesheet" href="adminstyle.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <style>
-  /* ══ PAGE-LEVEL OVERRIDES (dashboard content only) ════════════════════════ */
+  /* ══ PAGE-LEVEL STYLES ══════════════════════════════════════════════════ */
 
-  /* ── Stat cards ── */
+  /* ── Stat cards grid ── */
   .eg-loan-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 18px;
-    margin-bottom: 32px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
   }
   .eg-loan-card {
     background: var(--eg-card);
     border: 1.5px solid var(--eg-border);
     border-radius: 16px;
-    padding: 22px 20px;
+    padding: 20px 18px;
     box-shadow: 0 1px 6px rgba(10,59,47,0.06), 0 4px 16px rgba(10,59,47,0.04);
     cursor: pointer;
     transition: transform .2s, box-shadow .2s, border-color .2s;
@@ -65,63 +65,57 @@ $totalLoans = array_sum($counts);
   .eg-loan-card.active-card { border-color: var(--eg-forest); }
 
   .eg-loan-card-icon {
-    width: 38px; height: 38px; border-radius: 10px;
+    width: 36px; height: 36px; border-radius: 10px;
     background: var(--eg-light); display: flex;
     align-items: center; justify-content: center;
-    margin-bottom: 14px; position: relative; z-index: 1;
+    margin-bottom: 12px; position: relative; z-index: 1;
   }
-  .eg-loan-card-icon i { font-size: 17px; color: var(--eg-forest); }
+  .eg-loan-card-icon i { font-size: 16px; color: var(--eg-forest); }
   .eg-loan-card-label {
     font-size: 11px; font-weight: 700; text-transform: uppercase;
     letter-spacing: .6px; color: var(--eg-muted); margin-bottom: 6px;
     position: relative; z-index: 1;
   }
   .eg-loan-card-num {
-    font-size: 34px; font-weight: 800; color: var(--eg-forest);
+    font-size: 30px; font-weight: 800; color: var(--eg-forest);
     line-height: 1; position: relative; z-index: 1;
   }
 
   /* colour variants */
-  .eg-loan-card.c-all    { border-left: 4px solid #764ba2; }
-  .eg-loan-card.c-all    .eg-loan-card-icon { background: rgba(118,75,162,.10); }
-  .eg-loan-card.c-all    .eg-loan-card-icon i { color: #764ba2; }
-  .eg-loan-card.c-all    .eg-loan-card-num  { color: #764ba2; }
+  .eg-loan-card.c-all     { border-left: 4px solid #764ba2; }
+  .eg-loan-card.c-all     .eg-loan-card-icon { background: rgba(118,75,162,.10); }
+  .eg-loan-card.c-all     .eg-loan-card-icon i { color: #764ba2; }
+  .eg-loan-card.c-all     .eg-loan-card-num  { color: #764ba2; }
 
-  .eg-loan-card.c-active { border-left: 4px solid var(--eg-forest); }
-  .eg-loan-card.c-active .eg-loan-card-icon { background: var(--eg-light); }
-  .eg-loan-card.c-active .eg-loan-card-num  { color: var(--eg-forest); }
+  .eg-loan-card.c-active  { border-left: 4px solid var(--eg-forest); }
+  .eg-loan-card.c-active  .eg-loan-card-icon { background: var(--eg-light); }
+  .eg-loan-card.c-active  .eg-loan-card-num  { color: var(--eg-forest); }
 
   .eg-loan-card.c-approved { border-left: 4px solid #4CAF50; }
   .eg-loan-card.c-approved .eg-loan-card-icon { background: rgba(76,175,80,.12); }
   .eg-loan-card.c-approved .eg-loan-card-icon i { color: #4CAF50; }
   .eg-loan-card.c-approved .eg-loan-card-num { color: #2e7d32; }
 
-  .eg-loan-card.c-pending { border-left: 4px solid #FF9800; }
-  .eg-loan-card.c-pending .eg-loan-card-icon { background: rgba(255,152,0,.12); }
-  .eg-loan-card.c-pending .eg-loan-card-icon i { color: #FF9800; }
-  .eg-loan-card.c-pending .eg-loan-card-num { color: #e65100; }
+  .eg-loan-card.c-pending  { border-left: 4px solid #FF9800; }
+  .eg-loan-card.c-pending  .eg-loan-card-icon { background: rgba(255,152,0,.12); }
+  .eg-loan-card.c-pending  .eg-loan-card-icon i { color: #FF9800; }
+  .eg-loan-card.c-pending  .eg-loan-card-num { color: #e65100; }
 
   .eg-loan-card.c-rejected { border-left: 4px solid #f44336; }
   .eg-loan-card.c-rejected .eg-loan-card-icon { background: rgba(244,67,54,.10); }
   .eg-loan-card.c-rejected .eg-loan-card-icon i { color: #f44336; }
   .eg-loan-card.c-rejected .eg-loan-card-num { color: #c62828; }
 
-  /* ── NEW: Closed / Fully Paid card — dark green gold accent ── */
   .eg-loan-card.c-closed {
     border-left: 4px solid #c9a84c;
     background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%);
   }
   .eg-loan-card.c-closed::before { background: rgba(255,255,255,.08); opacity: 1; }
-  .eg-loan-card.c-closed .eg-loan-card-icon {
-    background: rgba(201,168,76,.20);
-  }
+  .eg-loan-card.c-closed .eg-loan-card-icon { background: rgba(201,168,76,.20); }
   .eg-loan-card.c-closed .eg-loan-card-icon i { color: #e8c96b; }
   .eg-loan-card.c-closed .eg-loan-card-label  { color: rgba(232,201,107,.75); }
   .eg-loan-card.c-closed .eg-loan-card-num    { color: #e8c96b; }
-  .eg-loan-card.c-closed:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 24px rgba(201,168,76,.25);
-  }
+  .eg-loan-card.c-closed:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(201,168,76,.25); }
 
   /* ── Table card ── */
   .eg-table-card {
@@ -130,38 +124,42 @@ $totalLoans = array_sum($counts);
     box-shadow: 0 1px 6px rgba(10,59,47,0.06);
     border: 1.5px solid var(--eg-border);
     overflow: hidden;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
+  }
+  .eg-table-card .table-responsive-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .eg-table-card table {
-    width: 100%; border-collapse: collapse;
+    width: 100%; min-width: 640px; border-collapse: collapse;
   }
   .eg-table-card thead th {
     background: #f4f8f6;
     font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .7px;
-    color: var(--eg-muted); padding: 13px 20px;
+    color: var(--eg-muted); padding: 13px 16px;
     border-bottom: 1.5px solid var(--eg-border);
     white-space: nowrap;
   }
   .eg-table-card tbody tr {
-    border-bottom: 1px solid #eef4f0;
-    transition: background .15s;
+    border-bottom: 1px solid #eef4f0; transition: background .15s;
   }
   .eg-table-card tbody tr:last-child { border-bottom: none; }
   .eg-table-card tbody tr:hover { background: #f8fcfa; }
-  /* Highlight closed/paid rows in the table */
   .eg-table-card tbody tr[data-status="Closed"] { background: #f5fdf8; }
   .eg-table-card tbody tr[data-status="Closed"]:hover { background: #e8f8ef; }
   .eg-table-card tbody td {
-    padding: 13px 20px; font-size: 13.5px;
+    padding: 12px 16px; font-size: 13.5px;
     color: var(--eg-text); vertical-align: middle;
   }
 
   /* Status badges */
   .badge-status {
     display: inline-flex; align-items: center; gap: 5px;
-    padding: 4px 12px; border-radius: 20px;
-    font-size: 11.5px; font-weight: 700; letter-spacing: .3px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; letter-spacing: .3px;
+    white-space: nowrap;
   }
   .badge-status::before { content: '●'; font-size: 8px; }
   .badge-status.pending  { background: rgba(255,152,0,.12); color: #e65100; border: 1px solid rgba(255,152,0,.30); }
@@ -172,11 +170,9 @@ $totalLoans = array_sum($counts);
   .badge-status.active::before { color: var(--eg-mid); }
   .badge-status.rejected { background: rgba(244,67,54,.10); color: #c62828; border: 1px solid rgba(244,67,54,.25); }
   .badge-status.rejected::before { color: #f44336; }
-  /* ── NEW: Closed badge — gold on dark green ── */
   .badge-status.closed {
     background: linear-gradient(90deg, #0a3b2f, #1a6b55);
-    color: #e8c96b;
-    border: 1px solid rgba(201,168,76,.35);
+    color: #e8c96b; border: 1px solid rgba(201,168,76,.35);
   }
   .badge-status.closed::before { content: '✓'; font-size: 9px; color: #e8c96b; }
 
@@ -187,37 +183,37 @@ $totalLoans = array_sum($counts);
     color: var(--eg-forest); font-size: 12px; font-weight: 600;
     cursor: pointer; padding: 5px 12px; border-radius: 7px;
     transition: all .2s; font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
   }
   .btn-view:hover { background: var(--eg-forest); color: #fff; border-color: var(--eg-forest); }
 
-  /* ── Analytics section ── */
+  /* ── Analytics ── */
   .eg-analytics {
     background: var(--eg-card);
     border: 1.5px solid var(--eg-border);
     border-radius: 16px;
-    padding: 28px;
+    padding: 24px;
     box-shadow: 0 1px 6px rgba(10,59,47,0.06);
-    margin-bottom: 32px;
+    margin-bottom: 28px;
   }
   .eg-analytics-header {
     display: flex; align-items: center; gap: 10px;
-    margin-bottom: 24px; color: var(--eg-forest);
+    margin-bottom: 20px; color: var(--eg-forest);
   }
   .eg-analytics-header i  { font-size: 22px; }
   .eg-analytics-header h2 {
-    margin: 0; font-size: 20px; font-weight: 700;
+    margin: 0; font-size: 18px; font-weight: 700;
     font-family: 'Playfair Display', serif;
   }
   .eg-analytics-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 30px; align-items: center;
+    gap: 28px; align-items: center;
   }
   .eg-chart-wrapper {
-    position: relative; height: 320px;
+    position: relative; height: 300px;
     display: flex; justify-content: center; align-items: center;
   }
-  /* ── 3-column stat grid to fit 5 items neatly (2+3 or 3+2) ── */
   .eg-chart-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -225,7 +221,7 @@ $totalLoans = array_sum($counts);
   }
   .eg-chart-stat {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 16px 14px; border-radius: 12px;
+    padding: 14px 12px; border-radius: 12px;
     border-left: 4px solid var(--eg-forest);
     transition: transform .2s, box-shadow .2s;
   }
@@ -234,44 +230,42 @@ $totalLoans = array_sum($counts);
     margin: 0 0 6px; font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .6px; color: var(--eg-muted);
   }
-  .eg-chart-stat p { margin: 0; font-size: 26px; font-weight: 800; }
+  .eg-chart-stat p { margin: 0; font-size: 24px; font-weight: 800; }
   .eg-chart-stat.s-active   { border-left-color: var(--eg-forest); } .eg-chart-stat.s-active   p { color: var(--eg-forest); }
   .eg-chart-stat.s-approved { border-left-color: #4CAF50; }           .eg-chart-stat.s-approved p { color: #2e7d32; }
   .eg-chart-stat.s-pending  { border-left-color: #FF9800; }           .eg-chart-stat.s-pending  p { color: #e65100; }
   .eg-chart-stat.s-rejected { border-left-color: #f44336; }           .eg-chart-stat.s-rejected p { color: #c62828; }
-  /* ── NEW: Closed stat chip ── */
   .eg-chart-stat.s-closed {
     border-left-color: #c9a84c;
     background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%);
-    /* span full width on its own row */
     grid-column: 1 / -1;
   }
   .eg-chart-stat.s-closed h4 { color: rgba(232,201,107,.70); }
   .eg-chart-stat.s-closed p  { color: #e8c96b; }
 
-  /* ── Report buttons ── */
+  /* ── Reports ── */
   .eg-reports {
     background: var(--eg-card);
     border: 1.5px solid var(--eg-border);
     border-radius: 16px;
-    padding: 28px;
+    padding: 24px;
     box-shadow: 0 1px 6px rgba(10,59,47,0.06);
-    margin-bottom: 32px;
+    margin-bottom: 28px;
   }
   .eg-reports h3 {
-    margin: 0 0 20px; color: var(--eg-forest);
+    margin: 0 0 18px; color: var(--eg-forest);
     display: flex; align-items: center; gap: 8px;
-    font-size: 18px; font-weight: 700;
+    font-size: 17px; font-weight: 700;
     font-family: 'Playfair Display', serif;
   }
   .eg-report-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
   }
   .eg-report-btn {
-    padding: 14px 20px; border: none; border-radius: 10px;
-    font-size: 13.5px; font-weight: 600; cursor: pointer;
+    padding: 13px 16px; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     gap: 8px; color: white;
     box-shadow: 0 4px 8px rgba(0,0,0,0.10);
@@ -280,24 +274,23 @@ $totalLoans = array_sum($counts);
   }
   .eg-report-btn:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
   .eg-report-btn:active { transform: translateY(-1px); }
-  .eg-report-btn i { font-size: 16px; }
+  .eg-report-btn i { font-size: 15px; }
   .btn-r-all      { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   .btn-r-active   { background: linear-gradient(135deg, var(--eg-forest) 0%, #1b5e20 100%); }
   .btn-r-approved { background: linear-gradient(135deg, #4CAF50 0%, var(--eg-forest) 100%); }
   .btn-r-pending  { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); }
   .btn-r-rejected { background: linear-gradient(135deg, #f44336 0%, #c62828 100%); }
-  /* ── NEW: Closed/Fully Paid report button ── */
   .btn-r-closed   { background: linear-gradient(135deg, #0a3b2f 0%, #1a6b55 100%); border: 1px solid rgba(201,168,76,.40); }
   .btn-r-closed:hover { box-shadow: 0 6px 16px rgba(201,168,76,.30); }
 
   /* ── Section header ── */
   .eg-section-header {
     display: flex; align-items: center; justify-content: space-between;
-    margin: 32px 0 16px; flex-wrap: wrap; gap: 10px;
+    margin: 28px 0 14px; flex-wrap: wrap; gap: 10px;
   }
   .eg-section-title {
     font-family: 'Playfair Display', serif;
-    font-size: 20px; font-weight: 700; color: var(--eg-forest);
+    font-size: 19px; font-weight: 700; color: var(--eg-forest);
   }
   .eg-section-sub { font-size: 12.5px; color: var(--eg-muted); margin-top: 2px; }
 
@@ -306,7 +299,7 @@ $totalLoans = array_sum($counts);
     display: none; position: fixed; inset: 0; z-index: 3000;
     background: rgba(6,38,32,0.55);
     align-items: center; justify-content: center;
-    padding: 20px;
+    padding: 16px;
     animation: fadeIn .2s ease;
   }
   .modal.show { display: flex; }
@@ -314,7 +307,7 @@ $totalLoans = array_sum($counts);
   .modal-content {
     background: var(--eg-card);
     border-radius: 16px;
-    padding: 32px;
+    padding: 28px;
     max-width: 860px; width: 100%;
     max-height: 90vh; overflow-y: auto;
     box-shadow: 0 24px 64px rgba(6,38,32,0.28);
@@ -322,20 +315,20 @@ $totalLoans = array_sum($counts);
   }
   .modal-content h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 22px; color: var(--eg-forest); margin-bottom: 8px;
+    font-size: 20px; color: var(--eg-forest); margin-bottom: 8px;
   }
-  .modal-content hr { border-color: var(--eg-border); margin: 16px 0; }
+  .modal-content hr { border-color: var(--eg-border); margin: 14px 0; }
   .modal-content .details {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
   }
   .modal-content .column h3 {
-    font-size: 15px; font-weight: 700; color: var(--eg-forest);
-    margin-bottom: 12px; padding-bottom: 6px;
+    font-size: 14px; font-weight: 700; color: var(--eg-forest);
+    margin-bottom: 10px; padding-bottom: 6px;
     border-bottom: 2px solid var(--eg-light);
   }
   .modal-content .column h4 {
-    font-size: 13.5px; font-weight: 700; color: var(--eg-forest);
-    margin: 14px 0 8px;
+    font-size: 13px; font-weight: 700; color: var(--eg-forest);
+    margin: 12px 0 8px;
   }
   .modal-content p {
     font-size: 13.5px; margin-bottom: 8px; color: var(--eg-text);
@@ -343,25 +336,26 @@ $totalLoans = array_sum($counts);
   .modal-content p strong { color: var(--eg-muted); font-weight: 600; margin-right: 4px; }
   .payment-summary {
     background: var(--eg-light); border-radius: 10px;
-    padding: 14px 16px; margin: 14px 0;
+    padding: 14px 16px; margin: 12px 0;
     border: 1px solid var(--eg-border);
   }
   .payment-summary h4 {
-    font-size: 12.5px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .5px; color: var(--eg-muted); margin-bottom: 10px !important;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--eg-muted); margin-bottom: 8px !important;
   }
   .view-doc-btn {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 16px; border-radius: 8px;
+    padding: 8px 14px; border-radius: 8px;
     background: var(--eg-light); border: 1px solid var(--eg-border);
     color: var(--eg-forest); font-size: 13px; font-weight: 600;
     cursor: pointer; transition: all .2s; font-family: 'DM Sans', sans-serif;
+    width: 100%;
   }
   .view-doc-btn:hover:not(:disabled) { background: var(--eg-forest); color: #fff; border-color: var(--eg-forest); }
   .view-doc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  .return-btn-container { text-align: right; margin-top: 24px; }
+  .return-btn-container { text-align: right; margin-top: 20px; }
   #returnBtn {
-    padding: 10px 28px; border-radius: 10px;
+    padding: 10px 26px; border-radius: 10px;
     background: linear-gradient(135deg, var(--eg-forest) 0%, var(--eg-mid) 100%);
     color: #fff; border: none; font-size: 14px; font-weight: 600;
     cursor: pointer; font-family: 'DM Sans', sans-serif;
@@ -370,10 +364,57 @@ $totalLoans = array_sum($counts);
   }
   #returnBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(10,59,47,0.28); }
 
+  /* ══════════════════════════════════════
+     RESPONSIVE
+  ══════════════════════════════════════ */
+
+  /* Stat cards: 3 cols on tablet, 2 on mobile */
+  @media (max-width: 900px) {
+    .eg-loan-cards { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  }
+  @media (max-width: 600px) {
+    .eg-loan-cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .eg-loan-card  { padding: 16px 14px; border-radius: 12px; }
+    .eg-loan-card-num  { font-size: 26px; }
+  }
+  @media (max-width: 380px) {
+    .eg-loan-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .eg-loan-card  { padding: 12px 10px; }
+    .eg-loan-card-num  { font-size: 22px; }
+    .eg-loan-card-label { font-size: 10px; }
+  }
+
+  /* Analytics: stack on tablet */
   @media (max-width: 768px) {
-    .modal-content .details { grid-template-columns: 1fr; }
-    .eg-analytics-grid { grid-template-columns: 1fr; }
-    .eg-chart-stats { grid-template-columns: 1fr 1fr; }
+    .eg-analytics-grid { grid-template-columns: 1fr; gap: 20px; }
+    .eg-chart-wrapper  { height: 260px; }
+    .eg-chart-stats    { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .eg-analytics { padding: 18px 14px; }
+    .eg-chart-wrapper { height: 220px; }
+  }
+
+  /* Report grid: 2 cols on tablet, 1 on small mobile */
+  @media (max-width: 500px) {
+    .eg-report-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .eg-report-btn  { font-size: 12px; padding: 11px 10px; }
+  }
+  @media (max-width: 360px) {
+    .eg-report-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Modal: stack columns on mobile */
+  @media (max-width: 640px) {
+    .modal-content { padding: 20px 16px; border-radius: 12px; }
+    .modal-content .details { grid-template-columns: 1fr; gap: 0; }
+    .modal-content h2 { font-size: 17px; }
+  }
+  @media (max-width: 400px) {
+    .modal { padding: 8px; }
+    .modal-content { padding: 16px 14px; }
+    .return-btn-container { text-align: center; }
+    #returnBtn { width: 100%; }
   }
 </style>
 
@@ -381,8 +422,8 @@ $totalLoans = array_sum($counts);
 <main class="eg-content">
 
   <!-- Page heading -->
-  <div style="margin-bottom:28px;">
-    <h1 style="font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:var(--eg-forest); letter-spacing:-.2px;">
+  <div style="margin-bottom:24px;">
+    <h1 style="font-family:'Playfair Display',serif; font-size:26px; font-weight:700; color:var(--eg-forest); letter-spacing:-.2px;">
       Loan Dashboard
     </h1>
     <p style="font-size:13.5px; color:var(--eg-muted); margin-top:3px;">
@@ -417,7 +458,6 @@ $totalLoans = array_sum($counts);
       <div class="eg-loan-card-label">Rejected</div>
       <div class="eg-loan-card-num"><?= $counts['Rejected'] ?></div>
     </div>
-    <!-- ── NEW: Closed / Fully Paid card ── -->
     <div class="eg-loan-card c-closed" onclick="filterLoans('Closed', this)">
       <div class="eg-loan-card-icon"><i class="bi bi-patch-check-fill"></i></div>
       <div class="eg-loan-card-label">Fully Paid</div>
@@ -434,7 +474,7 @@ $totalLoans = array_sum($counts);
   </div>
 
   <div class="eg-table-card">
-    <div style="overflow-x:auto;">
+    <div class="table-responsive-wrap">
       <table>
         <thead>
           <tr>
@@ -471,22 +511,20 @@ $totalLoans = array_sum($counts);
                   $statusClass = strtolower($row['status']);
           ?>
             <tr data-status="<?= htmlspecialchars($row['status']) ?>">
-              <td style="font-family:'Courier New',monospace; font-size:12.5px; color:var(--eg-muted);">
+              <td style="font-family:'Courier New',monospace; font-size:12px; color:var(--eg-muted);">
                 #<?= htmlspecialchars($row['id']) ?>
               </td>
               <td style="font-weight:600;"><?= htmlspecialchars($row['full_name']) ?></td>
               <td><?= htmlspecialchars($row['loan_type_display']) ?></td>
               <td style="font-weight:600;">₱<?= number_format($row['loan_amount'], 2) ?></td>
-              <td style="font-family:'Courier New',monospace; font-size:12.5px;">
+              <td style="font-family:'Courier New',monospace; font-size:12px;">
                 <?= htmlspecialchars($_SESSION['loan_officer_id'] ?? 'LO-0001') ?>
               </td>
-              <td style="color:var(--eg-muted); font-size:13px;"><?= $date ?> <?= $time ?></td>
+              <td style="color:var(--eg-muted); font-size:12.5px; white-space:nowrap;"><?= $date ?><br><small><?= $time ?></small></td>
               <td>
                 <span class="badge-status <?= $statusClass ?>">
-                  <?php if ($statusClass === 'closed'): ?>
-                    Closed / Paid
-                  <?php else: ?>
-                    <?= htmlspecialchars($row['status']) ?>
+                  <?php if ($statusClass === 'closed'): ?>Closed / Paid
+                  <?php else: ?><?= htmlspecialchars($row['status']) ?>
                   <?php endif; ?>
                 </span>
               </td>
@@ -538,7 +576,6 @@ $totalLoans = array_sum($counts);
           <h4>Rejected</h4>
           <p><?= $counts['Rejected'] ?></p>
         </div>
-        <!-- ── NEW: Closed / Fully Paid stat chip — spans full width ── -->
         <div class="eg-chart-stat s-closed">
           <h4>🏆 Fully Paid / Closed</h4>
           <p><?= $counts['Closed'] ?></p>
@@ -566,7 +603,6 @@ $totalLoans = array_sum($counts);
       <button class="eg-report-btn btn-r-rejected" onclick="generateReport('rejected')">
         <i class="bi bi-x-circle-fill"></i> Rejected Loans
       </button>
-      <!-- ── NEW: Fully Paid / Closed report button ── -->
       <button class="eg-report-btn btn-r-closed"   onclick="generateReport('closed')">
         <i class="bi bi-patch-check-fill"></i> Fully Paid Loans
       </button>
@@ -610,7 +646,7 @@ $totalLoans = array_sum($counts);
           <p><strong>Rejected At:</strong>       <span id="modal-rejected-at"></span></p>
           <p><strong>Rejection Remarks:</strong> <span id="modal-reject-remarks"></span></p>
         </div>
-        <div style="margin-top:18px;">
+        <div style="margin-top:16px;">
           <h3>Uploaded Documents</h3>
           <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
             <button type="button" id="view-valid-id-btn"     class="view-doc-btn" onclick="viewDocument('valid_id')">
@@ -660,7 +696,7 @@ $totalLoans = array_sum($counts);
     approved: <?= $counts['Approved'] ?>,
     pending:  <?= $counts['Pending']  ?>,
     rejected: <?= $counts['Rejected'] ?>,
-    closed:   <?= $counts['Closed']   ?>   // ── NEW
+    closed:   <?= $counts['Closed']   ?>
   };
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -671,37 +707,17 @@ $totalLoans = array_sum($counts);
         data: {
           labels: ['Active', 'Awaiting Claim', 'Pending', 'Rejected', 'Fully Paid'],
           datasets: [{
-            data: [
-              chartData.active,
-              chartData.approved,
-              chartData.pending,
-              chartData.rejected,
-              chartData.closed       // ── NEW
-            ],
-            backgroundColor: [
-              '#0a3b2f',   // Active — dark green
-              '#4CAF50',   // Approved — medium green
-              '#FF9800',   // Pending — orange
-              '#f44336',   // Rejected — red
-              '#c9a84c'    // Fully Paid — gold  ← NEW
-            ],
-            borderWidth: 4,
-            borderColor: '#ffffff',
-            hoverOffset: 10
+            data: [chartData.active, chartData.approved, chartData.pending, chartData.rejected, chartData.closed],
+            backgroundColor: ['#0a3b2f','#4CAF50','#FF9800','#f44336','#c9a84c'],
+            borderWidth: 4, borderColor: '#ffffff', hoverOffset: 10
           }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '62%',
+          responsive: true, maintainAspectRatio: false, cutout: '62%',
           plugins: {
             legend: {
               position: 'bottom',
-              labels: {
-                padding: 18,
-                font: { size: 12, weight: 'bold', family: 'DM Sans' },
-                usePointStyle: true, pointStyle: 'circle'
-              }
+              labels: { padding: 16, font: { size: 11, weight: 'bold', family: 'DM Sans' }, usePointStyle: true, pointStyle: 'circle' }
             },
             tooltip: {
               callbacks: {
@@ -711,10 +727,8 @@ $totalLoans = array_sum($counts);
                   return ` ${context.label}: ${context.parsed} (${pct}%)`;
                 }
               },
-              backgroundColor: 'rgba(6,38,32,0.90)',
-              padding: 12,
-              titleFont: { family: 'DM Sans' },
-              bodyFont: { family: 'DM Sans' }
+              backgroundColor: 'rgba(6,38,32,0.90)', padding: 12,
+              titleFont: { family: 'DM Sans' }, bodyFont: { family: 'DM Sans' }
             }
           }
         }
@@ -722,7 +736,6 @@ $totalLoans = array_sum($counts);
     }
   });
 
-  /* ── Filter rows by status ── */
   function filterLoans(status, cardEl) {
     document.querySelectorAll('.eg-loan-card').forEach(c => c.classList.remove('active-card'));
     if (cardEl) cardEl.classList.add('active-card');
@@ -731,7 +744,6 @@ $totalLoans = array_sum($counts);
     });
   }
 
-  /* ── Document viewer ── */
   let currentValidId = '', currentProofIncome = '', currentCoeDocument = '';
   function viewDocument(docType) {
     const map  = { valid_id: currentValidId, proof_of_income: currentProofIncome, coe_document: currentCoeDocument };
@@ -740,7 +752,6 @@ $totalLoans = array_sum($counts);
     window.open(path, '_blank');
   }
 
-  /* ── View loan details ── */
   function viewLoanDetails(loanId) {
     fetch(`view_loan.php?id=${loanId}`)
       .then(r => r.json())
@@ -765,36 +776,28 @@ $totalLoans = array_sum($counts);
         document.getElementById('modal-monthly-payment').textContent = parseFloat(data.monthly_payment || 0).toLocaleString(undefined, {minimumFractionDigits:2});
         document.getElementById('modal-total-payable').textContent   = (parseFloat(data.loan_amount || 0) * 1.20).toLocaleString(undefined, {minimumFractionDigits:2});
 
-        // Status badge
-        const st  = data.status || '';
-        const stL = st.toLowerCase();
+        const st = data.status || '', stL = st.toLowerCase();
         const stLabel = stL === 'closed' ? 'Closed / Paid' : st;
-        document.getElementById('modal-status-badge').innerHTML =
-          `<span class="badge-status ${stL}">${stLabel}</span>`;
+        document.getElementById('modal-status-badge').innerHTML = `<span class="badge-status ${stL}">${stLabel}</span>`;
 
-        // Approval / rejection / closed info
         const approvalInfo  = document.getElementById('approval-info');
         const rejectionInfo = document.getElementById('rejection-info');
         if ((stL === 'active' || stL === 'approved' || stL === 'closed') && data.approved_by) {
           document.getElementById('modal-approved-by').textContent = data.approved_by;
           document.getElementById('modal-approved-at').textContent = new Date(data.approved_at).toLocaleString();
-          approvalInfo.style.display  = 'block';
-          rejectionInfo.style.display = 'none';
+          approvalInfo.style.display  = 'block'; rejectionInfo.style.display = 'none';
         } else if (stL === 'rejected' && data.rejected_by) {
           document.getElementById('modal-rejected-by').textContent    = data.rejected_by;
           document.getElementById('modal-rejected-at').textContent    = new Date(data.rejected_at).toLocaleString();
           document.getElementById('modal-reject-remarks').textContent = data.rejection_remarks || '—';
-          rejectionInfo.style.display = 'block';
-          approvalInfo.style.display  = 'none';
+          rejectionInfo.style.display = 'block'; approvalInfo.style.display  = 'none';
         } else {
-          approvalInfo.style.display  = 'none';
-          rejectionInfo.style.display = 'none';
+          approvalInfo.style.display = 'none'; rejectionInfo.style.display = 'none';
         }
 
         currentValidId     = data.file_url        || '';
         currentProofIncome = data.proof_of_income || '';
         currentCoeDocument = data.coe_document    || '';
-
         document.getElementById('view-valid-id-btn').disabled     = !currentValidId;
         document.getElementById('view-proof-income-btn').disabled = !currentProofIncome;
         document.getElementById('view-coe-btn').disabled          = !currentCoeDocument;
@@ -816,7 +819,6 @@ $totalLoans = array_sum($counts);
     if (e.target === modal) closeViewModal();
   });
 
-  /* ── Generate PDF report ── */
   function generateReport(type) {
     const chartImage = window.loanPieChart ? window.loanPieChart.toBase64Image() : '';
     fetch(`generate_report.php?type=${type}`, {
@@ -831,4 +833,4 @@ $totalLoans = array_sum($counts);
       })
       .catch(() => alert('Failed to generate report'));
   }
-</script>
+</script>   

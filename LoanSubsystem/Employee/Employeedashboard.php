@@ -675,9 +675,6 @@ $activeNav = 'Dashboard';
         <div class="eg-section-title">Loan Officers &amp; Admins</div>
         <div class="eg-section-sub">Manage all registered officer accounts</div>
       </div>
-      <a href="add_officer.php" class="eg-btn-add">
-        <i class="bi bi-plus-lg"></i> Add Officer
-      </a>
     </div>
 
     <div class="eg-table-card">

@@ -320,6 +320,7 @@ $flashError     = $error ? json_encode($error) : 'null';
       <a href="Employeedashboard.php" class="eg-nav-item"><i class="bi bi-speedometer2"></i> Dashboard</a>
       <a href="add_officer.php"       class="eg-nav-item"><i class="bi bi-person-gear"></i> Account Management</a>
       <a href="audit_logs.php"        class="eg-nav-item active"><i class="bi bi-journal-text"></i> Audit Logs</a>
+      <a href="manage_payments.php" class="eg-nav-item "><i class="bi bi-credit-card-2-front"></i> Manage Paymentss</a>
     </div>
   </div>
 
