@@ -816,6 +816,17 @@ function TermsModal({ onAccept, onClose }) {
 function validateEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function validateContact(v) { return /^[0-9+\-\s()]{7,20}$/.test(v); }
 
+// ── CHANGE 2: Clamp birthday year to max 4 digits ────────────────
+function clampBirthdayYear(value) {
+  if (!value) return value;
+  const parts = value.split('-');
+  if (parts.length >= 1 && parts[0].length > 4) {
+    parts[0] = parts[0].slice(0, 4);
+    return parts.join('-');
+  }
+  return value;
+}
+
 function RegisterApp() {
   const [firstName,      setFirstName]      = useState(INIT_FIRSTNAME);
   const [middleName,     setMiddleName]     = useState(INIT_MIDDLENAME);
@@ -928,6 +939,14 @@ function RegisterApp() {
     return (v[field] ? 'field-ok' : 'field-err') + (extra ? ' ' + extra : '');
   }
 
+  // ── CHANGE 2: Birthday onChange — clamps year to 4 digits ────────
+  function handleBirthdayChange(e) {
+    const clamped = clampBirthdayYear(e.target.value);
+    setBirthday(clamped);
+    clearErrors();
+    touch('birthday');
+  }
+
   function handleSubmit(e) {
     touchAll();
     const errs = [];
@@ -1004,20 +1023,8 @@ function RegisterApp() {
           </div>
         </div>
 
-        {/* ── ADDRESS ── */}
+        {/* ── ADDRESS ── CHANGE 1: Order is now Province → Municipality → Barangay → House/Street */}
         <div className="section-divider">Address</div>
-        <div className="row-fields cols-1">
-          <div className="field-wrap">
-            <label>House No. / Street / Unit *</label>
-            <input type="text" name="address" required placeholder="e.g. 29 Sinforosa St."
-              value={address}
-              onChange={e => { setAddress(e.target.value); clearErrors(); }}
-              onBlur={() => touch('address')}
-              className={fieldCls('address')}/>
-            <FieldHint touched={t.address} valid={v.address}
-              errorMsg="Street/house address is required." okMsg="Address noted!"/>
-          </div>
-        </div>
 
         <div className="row-fields cols-2">
           <div className="field-wrap">
@@ -1074,6 +1081,19 @@ function RegisterApp() {
           </div>
         </div>
 
+        <div className="row-fields cols-1">
+          <div className="field-wrap">
+            <label>House No. / Street / Unit *</label>
+            <input type="text" name="address" required placeholder="e.g. 29 Sinforosa St."
+              value={address}
+              onChange={e => { setAddress(e.target.value); clearErrors(); }}
+              onBlur={() => touch('address')}
+              className={fieldCls('address')}/>
+            <FieldHint touched={t.address} valid={v.address}
+              errorMsg="Street/house address is required." okMsg="Address noted!"/>
+          </div>
+        </div>
+
         {/* ── CONTACT ── */}
         <div className="section-divider">Contact Details</div>
         <div className="row-fields cols-2">
@@ -1101,9 +1121,16 @@ function RegisterApp() {
         <div className="row-fields cols-1">
           <div className="field-wrap">
             <label>Birthday *</label>
+            {/*
+              CHANGE 2: min/max attributes enforce a 4-digit year standard (1900-01-01 to 9999-12-31).
+              The onChange handler additionally clamps the year in React state via clampBirthdayYear(),
+              preventing any year value longer than 4 digits from being stored or submitted.
+            */}
             <input type="date" name="birthday" required
+              min="1900-01-01"
+              max="9999-12-31"
               value={birthday}
-              onChange={e => { setBirthday(e.target.value); clearErrors(); touch('birthday'); }}
+              onChange={handleBirthdayChange}
               onBlur={() => touch('birthday')}
               className={fieldCls('birthday')}/>
             <FieldHint touched={t.birthday} valid={v.birthday}

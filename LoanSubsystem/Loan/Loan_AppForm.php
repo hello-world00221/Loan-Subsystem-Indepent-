@@ -172,6 +172,17 @@ try {
     .form-control[type="file"] { padding: .5rem .75rem; }
     .file-hint { font-size: .78rem; color: #888; margin-bottom: .3rem; display: block; }
 
+    /* ── ID format hint (green) ── */
+    .id-format-hint {
+      font-size: .78rem;
+      color: var(--eg-light);
+      font-weight: 600;
+      display: block;
+      margin-top: .3rem;
+      min-height: .9rem;
+      transition: opacity .2s;
+    }
+
     /* ── Action buttons ── */
     .btn-back {
       background: transparent;
@@ -524,7 +535,9 @@ try {
                     <option value="">Select Valid ID</option>
                     <?php if (!empty($validIdTypes)): ?>
                       <?php foreach ($validIdTypes as $idType): ?>
-                        <option value="<?= (int)$idType['id'] ?>"><?= htmlspecialchars($idType['valid_id_type']) ?></option>
+                        <option value="<?= (int)$idType['id'] ?>" data-id-name="<?= htmlspecialchars(strtolower($idType['valid_id_type'])) ?>">
+                          <?= htmlspecialchars($idType['valid_id_type']) ?>
+                        </option>
                       <?php endforeach; ?>
                     <?php else: ?>
                       <option value="" disabled>No ID types available — contact admin</option>
@@ -536,7 +549,8 @@ try {
                 <div class="col-sm-6">
                   <label class="form-label" for="valid_id_number">ID Number <span class="required">*</span></label>
                   <input type="text" class="form-control" name="valid_id_number" id="valid_id_number"
-                         placeholder="Enter your ID number" maxlength="150" required />
+                         placeholder="Select a Valid ID type first" maxlength="150" required />
+                  <span class="id-format-hint" id="id-format-hint"></span>
                   <span class="validation-message" id="valid-id-number-error"></span>
                 </div>
 
@@ -843,6 +857,164 @@ function closeModal() {
     document.getElementById('pageContent').classList.remove('blur-background');
     document.body.style.overflow = 'auto';
 }
+</script>
+
+<!-- ══════════════════════════════════════════════════
+     ID NUMBER FORMAT VALIDATION PER VALID ID TYPE
+═════════════════════════════════════════════════════ -->
+<script>
+(function () {
+    // ── Format definitions keyed by lowercase valid_id_type name ─────────────
+    // Handles all 12 IDs in loan_valid_id (including duplicate "Postal ID" at id=2 and id=10)
+    const idFormats = {
+        "driver's license": {
+            pattern:     /^[A-Z]\d{2}-\d{2}-\d{6}$/,
+            hint:        "📋 Format: A00-00-000000 (e.g., N01-23-456789)",
+            placeholder: "e.g., N01-23-456789",
+            errorMsg:    "Invalid format. Expected: A00-00-000000 (e.g., N01-23-456789)"
+        },
+        "postal id": {
+            pattern:     /^\d{4}-\d{7}-\d$/,
+            hint:        "📋 Format: 0000-0000000-0 (e.g., 1234-5678901-2)",
+            placeholder: "e.g., 1234-5678901-2",
+            errorMsg:    "Invalid format. Expected: 0000-0000000-0 (e.g., 1234-5678901-2)"
+        },
+        "gsis": {
+            pattern:     /^\d{11}$/,
+            hint:        "📋 Format: 11-digit number (e.g., 12345678901)",
+            placeholder: "e.g., 12345678901",
+            errorMsg:    "Invalid format. Expected: 11 consecutive digits (e.g., 12345678901)"
+        },
+        "nbi clearance": {
+            pattern:     /^[A-Z]{2}\d{2}-\d{5}[A-Z]$/,
+            hint:        "📋 Format: AA00-00000A (e.g., MA23-12345B)",
+            placeholder: "e.g., MA23-12345B",
+            errorMsg:    "Invalid format. Expected: AA00-00000A (e.g., MA23-12345B)"
+        },
+        "passport": {
+            pattern:     /^[A-Z]{2}\d{7}$/,
+            hint:        "📋 Format: 2 letters + 7 digits (e.g., AA1234567)",
+            placeholder: "e.g., AA1234567",
+            errorMsg:    "Invalid format. Expected: 2 letters + 7 digits (e.g., AA1234567)"
+        },
+        "national id": {
+            pattern:     /^\d{4}-\d{7}-\d$/,
+            hint:        "📋 Format: 0000-0000000-0 (e.g., 0001-2345678-9)",
+            placeholder: "e.g., 0001-2345678-9",
+            errorMsg:    "Invalid format. Expected: 0000-0000000-0 (e.g., 0001-2345678-9)"
+        },
+        "umid": {
+            pattern:     /^\d{4}-\d{7}-\d$/,
+            hint:        "📋 Format: 0000-0000000-0 (e.g., 0001-2345678-9)",
+            placeholder: "e.g., 0001-2345678-9",
+            errorMsg:    "Invalid format. Expected: 0000-0000000-0 (e.g., 0001-2345678-9)"
+        },
+        "voter's id": {
+            pattern:     /^\d{4}-\d{5}-[A-Z]{2}$/,
+            hint:        "📋 Format: 0000-00000-AA (e.g., 1234-56789-AB)",
+            placeholder: "e.g., 1234-56789-AB",
+            errorMsg:    "Invalid format. Expected: 0000-00000-AA (e.g., 1234-56789-AB)"
+        },
+        "prc id": {
+            pattern:     /^\d{7}$/,
+            hint:        "📋 Format: 7-digit number (e.g., 1234567)",
+            placeholder: "e.g., 1234567",
+            errorMsg:    "Invalid format. Expected: 7 consecutive digits (e.g., 1234567)"
+        },
+        "philhealth id": {
+            pattern:     /^\d{2}-\d{9}-\d$/,
+            hint:        "📋 Format: 00-000000000-0 (e.g., 12-345678901-2)",
+            placeholder: "e.g., 12-345678901-2",
+            errorMsg:    "Invalid format. Expected: 00-000000000-0 (e.g., 12-345678901-2)"
+        },
+        "senior citizen id": {
+            pattern:     /^SC-\d{4}-\d{6}$/,
+            hint:        "📋 Format: SC-0000-000000 (e.g., SC-2024-123456)",
+            placeholder: "e.g., SC-2024-123456",
+            errorMsg:    "Invalid format. Expected: SC-0000-000000 (e.g., SC-2024-123456)"
+        }
+    };
+
+    const idTypeSelect  = document.getElementById('loan_valid_id_type');
+    const idNumberInput = document.getElementById('valid_id_number');
+    const idHint        = document.getElementById('id-format-hint');
+    const idError       = document.getElementById('valid-id-number-error');
+
+    // ── Resolve format key from the selected option's data-id-name attribute ──
+    function getFormat() {
+        const selected = idTypeSelect.options[idTypeSelect.selectedIndex];
+        if (!selected || !selected.value) return null;
+        // Use the data-id-name attribute (lowercased PHP value) for exact matching
+        const key = (selected.getAttribute('data-id-name') || selected.text.trim().toLowerCase());
+        return idFormats[key] || null;
+    }
+
+    // ── Update hint + placeholder when ID type changes ────────────────────────
+    function applyFormat() {
+        const fmt = getFormat();
+        idError.textContent = '';
+        idNumberInput.value = '';
+
+        if (fmt) {
+            idHint.textContent        = fmt.hint;
+            idNumberInput.placeholder = fmt.placeholder;
+        } else {
+            idHint.textContent        = '';
+            idNumberInput.placeholder = 'Select a Valid ID type first';
+        }
+    }
+
+    // ── Validate the ID number field ─────────────────────────────────────────
+    function validateIdNumber() {
+        const fmt = getFormat();
+        const val = idNumberInput.value.trim().toUpperCase();
+
+        // No format rule for this ID type — skip pattern check
+        if (!fmt) {
+            idError.textContent = '';
+            return true;
+        }
+
+        if (!val) {
+            idError.textContent = '⚠ ID Number is required.';
+            return false;
+        }
+
+        if (!fmt.pattern.test(val)) {
+            idError.textContent = '⚠ ' + fmt.errorMsg;
+            return false;
+        }
+
+        idError.textContent = '';
+        return true;
+    }
+
+    // ── Auto-uppercase as user types + live validation ─────────────────────
+    idNumberInput.addEventListener('input', function () {
+        const pos   = this.selectionStart;
+        this.value  = this.value.toUpperCase();
+        this.setSelectionRange(pos, pos);
+        if (this.value.trim().length > 0) validateIdNumber();
+        else idError.textContent = '';
+    });
+
+    idNumberInput.addEventListener('blur', validateIdNumber);
+
+    // ── Reset when ID type changes ─────────────────────────────────────────
+    idTypeSelect.addEventListener('change', applyFormat);
+
+    // ── Block form submission if ID number format is invalid ──────────────
+    // Runs in CAPTURE phase (true) so it fires before the existing submit handler
+    document.getElementById('loanForm').addEventListener('submit', function (e) {
+        if (!validateIdNumber()) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            idNumberInput.focus();
+            idNumberInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, true);
+
+})();
 </script>
 
 </body>

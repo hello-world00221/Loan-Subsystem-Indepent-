@@ -284,12 +284,12 @@ if (!isset($_SESSION['user_email'])) {
       </div>
 
       <div class="col-sm-6 col-xl-3">
-        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Car%20Loan'">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Vehicle%20Loan'">
           <div class="loan-card-thumb thumb-car">
-            <img src="pictures/carloan.png" alt="Car Loan">
+            <img src="pictures/VehicleLoan.png" alt="Vehicle Loan">
           </div>
           <div class="loan-card-body">
-            <p class="loan-card-title">Car Loan</p>
+            <p class="loan-card-title">Vehicle Loan</p>
             <p class="loan-card-desc">Drive your new car with low rates and fast approval.</p>
             <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
           </div>
@@ -297,12 +297,12 @@ if (!isset($_SESSION['user_email'])) {
       </div>
 
       <div class="col-sm-6 col-xl-3">
-        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Home%20Loan'">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Housing%20Loan'">
           <div class="loan-card-thumb thumb-home">
-            <img src="pictures/housingloan.png" alt="Home Loan">
+            <img src="pictures/housingloan.jpg" alt="Housing Loan">
           </div>
           <div class="loan-card-body">
-            <p class="loan-card-title">Home Loan</p>
+            <p class="loan-card-title">Housing Loan</p>
             <p class="loan-card-desc">Take the first step to your new home.</p>
             <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
           </div>
@@ -317,6 +317,71 @@ if (!isset($_SESSION['user_email'])) {
           <div class="loan-card-body">
             <p class="loan-card-title">Multi-Purpose Loan</p>
             <p class="loan-card-desc">Use your property to fund your various needs.</p>
+            <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-sm-6 col-xl-3">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Medical%20Loan'">
+          <div class="loan-card-thumb thumb-medical">
+            <img src="pictures/medical.jpg" alt="Medical Loan">
+          </div>
+          <div class="loan-card-body">
+            <p class="loan-card-title">Medical Loan</p>
+            <p class="loan-card-desc">Get the care you need without the financial stress.</p>
+            <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
+          </div>
+        </div>
+      </div>  
+
+      <div class="col-sm-6 col-xl-3">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Education%20Loan'">
+          <div class="loan-card-thumb thumb-education">
+            <img src="pictures/images.jpg" alt="Education Loan">
+          </div>
+          <div class="loan-card-body">
+            <p class="loan-card-title">Education Loan</p>
+            <p class="loan-card-desc">Invest in your future with our flexible education loans.</p>
+            <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
+          </div>
+        </div>
+      </div> 
+      
+      <div class="col-sm-6 col-xl-3">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Salary%20Loan'">
+          <div class="loan-card-thumb thumb-salary">
+            <img src="pictures/salary.jpg" alt="Salary Loan">
+          </div>
+          <div class="loan-card-body">
+            <p class="loan-card-title">Salary Loan</p>
+            <p class="loan-card-desc">Get the funds you need to meet your financial obligations.</p>
+            <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
+          </div>
+        </div>
+      </div> 
+
+      <div class="col-sm-6 col-xl-3">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Emergency%20Loan'">
+          <div class="loan-card-thumb thumb-emergency">
+            <img src="pictures/emergency.jpg" alt="Emergency Loan">
+          </div>
+          <div class="loan-card-body">
+            <p class="loan-card-title">Emergency Loan</p>
+            <p class="loan-card-desc">Get the funds you need for unexpected expenses.</p>
+            <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-6 col-xl-3">
+        <div class="loan-card" onclick="window.location.href='Loan_AppForm.php?loanType=Appliance%20Loan'">
+          <div class="loan-card-thumb thumb-appliance">
+            <img src="pictures/appliance.png" alt="Appliance Loan">
+          </div>
+          <div class="loan-card-body">
+            <p class="loan-card-title">Appliance Loan</p>
+            <p class="loan-card-desc">Get the funds you need to purchase essential appliances.</p>
             <span class="loan-card-cta">Apply Now <i class="fas fa-arrow-right"></i></span>
           </div>
         </div>

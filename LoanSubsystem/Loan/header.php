@@ -440,8 +440,9 @@ nav {
                 <button class="profile-btn" id="profileBtn" onclick="toggleProfileDropdown(event)" aria-expanded="false" aria-label="Account menu">
                     <div class="avatar"><?= htmlspecialchars($userInitials) ?></div>
                 </button>
-
+                
                 <div class="profile-dropdown" id="profileDropdown" role="menu">
+                    <a href="profile.php" role="menuitem">My Profile</a>
                     <a href="logout.php" role="menuitem">Logout</a>
                 </div>
             <?php endif; ?>
