@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 20, 2026 at 06:18 AM
+-- Generation Time: Apr 22, 2026 at 03:20 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -602,7 +602,11 @@ INSERT INTO `loan_applications` (`id`, `user_id`, `loan_type_id`, `user_email`, 
 (11, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 5000.00, 882.61, '2026-10-09', '2026-06-09', 'Test', 'Active', '2026-04-09 04:35:41'),
 (12, 3, 8, 'kurtcarpeso02@gmail.com', '6 Months', 10000.00, 1765.23, '2026-10-09', '2026-05-09', 'Pre-test', 'Rejected', '2026-04-09 04:40:50'),
 (13, 2, 8, 'carpeso0958432@gmail.com', '6 Months', 7000.00, 1235.66, '2026-10-19', NULL, 'Tuition', 'Closed', '2026-04-19 09:39:38'),
-(14, 3, 1, 'kurtcarpeso02@gmail.com', '12 Months', 100000.00, 9263.45, '2027-04-20', '2026-05-20', 'Tuition', 'Pending', '2026-04-20 01:17:49');
+(14, 3, 1, 'kurtcarpeso02@gmail.com', '12 Months', 100000.00, 9263.45, '2027-04-20', '2026-05-20', 'Tuition', 'Rejected', '2026-04-20 01:17:49'),
+(15, 2, 8, 'carpeso0958432@gmail.com', '6 Months', 7000.00, 1235.66, '2026-10-22', '2026-07-22', 'Tuition', 'Active', '2026-04-22 02:16:36'),
+(16, 6, 5, 'ahambinoc92@gmail.com', '36 Months', 1000000.00, 37163.58, '2029-04-22', '2026-05-22', 'Car', 'Rejected', '2026-04-22 02:42:41'),
+(17, 4, 4, 'joannamariecarpeso@gmail.com', '6 Months', 6000.00, 1059.14, '2026-10-22', '2026-05-22', 'tuition', 'Active', '2026-04-22 10:43:34'),
+(18, 5, 7, 'beringuelajirocordial@gmail.com', '6 Months', 57000.00, 10061.80, '2026-10-22', '2026-05-22', 'Buy washing machine', 'Active', '2026-04-22 12:29:56');
 
 -- --------------------------------------------------------
 
@@ -633,7 +637,10 @@ INSERT INTO `loan_approvals` (`id`, `loan_application_id`, `approved_by`, `appro
 (13, 7, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:15:15'),
 (15, 10, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 12:33:47'),
 (17, 11, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 12:39:23'),
-(19, 13, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-19 17:47:56');
+(19, 13, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-19 17:47:56'),
+(21, 15, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-22 10:19:53'),
+(23, 17, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-22 18:51:21'),
+(25, 18, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-22 20:35:55');
 
 -- --------------------------------------------------------
 
@@ -670,7 +677,11 @@ INSERT INTO `loan_borrowers` (`id`, `loan_application_id`, `full_name`, `account
 (11, 11, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
 (12, 12, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
 (13, 13, 'Kurt Francis Carpeso', '10000', '09603281984', 'carpeso0958432@gmail.com', NULL, NULL),
-(14, 14, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL);
+(14, 14, 'Kurt', '1234455221', '09603281984', 'kurtcarpeso02@gmail.com', NULL, NULL),
+(15, 15, 'Kurt Francis Carpeso', '10000', '09603281984', 'carpeso0958432@gmail.com', NULL, NULL),
+(16, 16, 'Ambinoc m Ambinocbdl', 'EG220951969', '09276436759', 'ahambinoc92@gmail.com', NULL, NULL),
+(17, 17, 'JOANNA MARIE OCENAR CARPESO', 'EG847478389', '09983894613', 'joannamariecarpeso@gmail.com', NULL, NULL),
+(18, 18, 'Jiro Flojo Beringuela', 'EG905992297', '09603281984', 'beringuelajirocordial@gmail.com', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -708,7 +719,11 @@ INSERT INTO `loan_documents` (`id`, `loan_application_id`, `file_name`, `proof_o
 (11, 11, 'valid_id_1775709341_69d72c9d9326d.png', 'proof_income_1775709341_69d72c9d937d1.png', 'coe_1775709341_69d72c9d93d33.docx', NULL, NULL, NULL, NULL),
 (12, 12, 'valid_id_1775709650_69d72dd265e07.png', 'proof_income_1775709650_69d72dd266a11.png', 'coe_1775709650_69d72dd2670fe.docx', NULL, NULL, NULL, NULL),
 (13, 13, 'valid_id_1776591577_69e4a2d9eb232.png', 'proof_income_1776591577_69e4a2d9f0b95.png', 'coe_1776591578_69e4a2da0630b.docx', NULL, NULL, NULL, NULL),
-(14, 14, 'valid_id_1776647868_69e57ebcf1d44.png', 'proof_income_1776647868_69e57ebcf3bcb.png', 'coe_1776647869_69e57ebd017cf.docx', NULL, NULL, NULL, NULL);
+(14, 14, 'valid_id_1776647868_69e57ebcf1d44.png', 'proof_income_1776647868_69e57ebcf3bcb.png', 'coe_1776647869_69e57ebd017cf.docx', NULL, NULL, NULL, NULL),
+(15, 15, 'valid_id_1776824195_69e82f83e81cd.png', 'proof_income_1776824195_69e82f83ebf87.png', 'coe_1776824195_69e82f83ee675.docx', NULL, NULL, NULL, NULL),
+(16, 16, 'valid_id_1776825761_69e835a100c77.jpg', 'proof_income_1776825761_69e835a10cc90.docx', 'coe_1776825761_69e835a1180db.pdf', NULL, NULL, NULL, NULL),
+(17, 17, 'valid_id_1776854614_69e8a6565092b.png', 'proof_income_1776854614_69e8a65653371.png', 'coe_1776854614_69e8a65653db7.docx', NULL, NULL, NULL, NULL),
+(18, 18, 'valid_id_1776860996_69e8bf44a2901.png', 'proof_income_1776860996_69e8bf44acbc6.png', 'coe_1776860996_69e8bf44b330f.docx', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -747,7 +762,9 @@ INSERT INTO `loan_payments` (`id`, `loan_application_id`, `user_email`, `borrowe
 (4, 7, 'joannamariecarpeso@gmail.com', 'JOANNA MARIE OCENAR CARPESO', 'EG847478389', 1059.14, 'cheque', 'TXN-33863EED3223', '2026-04-19 14:07:20', 'Completed', NULL, 'JOANNA MARIE OCENAR CARPESO', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 06:07:20', '2026-04-19 06:07:20.415671'),
 (5, 13, 'carpeso0958432@gmail.com', 'Kurt Francis Carpeso', '10000', 9000.00, 'cheque', 'TXN-91502D079F3A', '2026-04-19 17:56:18', 'Completed', NULL, 'Kurt Francis Carpeso', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 09:56:18', '2026-04-19 09:56:18.418022'),
 (6, 2, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 6000.00, 'online', 'TXN-5478221A0059', '2026-04-19 18:33:07', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-19 10:33:07', '2026-04-19 10:33:07.632917'),
-(7, 3, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 900000.00, 'cheque', 'TXN-1E9234E248D7', '2026-04-20 09:09:58', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-20 01:09:58', '2026-04-20 01:09:58.284228');
+(7, 3, 'kurtcarpeso02@gmail.com', 'Kurt', '1234455221', 900000.00, 'cheque', 'TXN-1E9234E248D7', '2026-04-20 09:09:58', 'Completed', NULL, 'Kurt', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-20 01:09:58', '2026-04-20 01:09:58.284228'),
+(8, 15, 'carpeso0958432@gmail.com', 'Kurt Francis Carpeso', '10000', 1235.66, 'cheque', 'TXN-CA47367037DC', '2026-04-22 10:22:28', 'Completed', NULL, 'Kurt Francis Carpeso', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-22 02:22:28', '2026-04-22 02:22:28.267471'),
+(9, 15, 'carpeso0958432@gmail.com', 'Kurt Francis Carpeso', '10000', 1235.66, 'online', 'TXN-FD6E76FA7A6F', '2026-04-22 10:23:13', 'Completed', NULL, 'Kurt Francis Carpeso', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-04-22 02:23:13', '2026-04-22 02:23:13.347071');
 
 -- --------------------------------------------------------
 
@@ -772,7 +789,9 @@ INSERT INTO `loan_rejections` (`id`, `loan_application_id`, `rejected_by`, `reje
 (1, 6, 'Kurt Francis Carpeso', 2, '2026-03-15 15:58:02', 'NOt Valid'),
 (2, 8, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:40:07', 'Test'),
 (3, 9, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-09 11:40:26', 'test again'),
-(4, 12, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-14 08:28:48', 'Not Valid');
+(4, 12, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-14 08:28:48', 'Not Valid'),
+(5, 14, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-22 18:46:13', 'Not ready'),
+(6, 16, 'KURT FRANCIS OCENAR CARPESO', 3, '2026-04-22 18:46:31', 'too much money');
 
 -- --------------------------------------------------------
 
@@ -803,11 +822,8 @@ INSERT INTO `loan_types` (`id`, `code`, `name`, `max_amount`, `max_term_months`,
 (5, 'VEHICLE', 'Vehicle Loan', 300000.00, 36, 0.0700, 'Vehicle purchase loan', 1),
 (6, 'MEDICAL', 'Medical Loan', 15000.00, 12, 0.0300, 'Medical emergency loan', 1),
 (7, 'APPLIANCE', 'Appliance Loan', 20000.00, 18, 0.0500, 'Home appliance loan', 1),
-(8, 'PL', 'Personal Loan', 500000.00, 60, 12.5000, 'Personal loans for employees', 1),
-(9, 'HL', 'Housing Loan (Extended)', 2000000.00, 360, 8.5000, 'Housing/Home loans with extended terms', 1),
-(10, 'VL', 'Vehicle Loan (Extended)', 1000000.00, 60, 10.0000, 'Auto/Vehicle loans', 1),
-(11, 'EL', 'Emergency Loan (Extended)', 100000.00, 12, 15.0000, 'Quick emergency loans', 1),
-(12, 'SL', 'Salary Loan (Extended)', 200000.00, 24, 14.0000, 'Salary advance loans with higher limits', 1);
+(13, 'PERSONAL', 'Personal Loan', 1000000.00, 36, 0.0500, 'Personal Loan', 1),
+(14, 'MULTI', 'Multi-Purpose Loan', 1000000.00, 36, 0.0600, ' flexible, typically non-collateral, short-to-medium-term', 1);
 
 -- --------------------------------------------------------
 
@@ -869,7 +885,11 @@ INSERT INTO `loan_valid_ids` (`id`, `loan_application_id`, `loan_valid_id_type`,
 (11, 11, 9, '9901231231333'),
 (12, 12, 9, '31231313444341'),
 (13, 13, 8, '9933088088321'),
-(14, 14, 6, '1298419742198741');
+(14, 14, 6, '1298419742198741'),
+(15, 15, 6, '9994322458'),
+(16, 16, 8, '9994322458'),
+(17, 17, 3, '12345678901'),
+(18, 18, 8, '1234-56789-AB');
 
 -- --------------------------------------------------------
 
@@ -1091,7 +1111,9 @@ INSERT INTO `users` (`id`, `first_name`, `middle_name`, `surname`, `address`, `p
 (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kurt Francis Carpeso', 'carpeso0958432@gmail.com', '$2y$10$FmqeUbqcSgbluyG6DBeO3uYUqxek/S7lzU7K7QxB770RnyiBOF5SO', '10000', '09603281984', '2026-03-09 11:02:35'),
 (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kurt', 'kurtcarpeso02@gmail.com', '$2y$10$.aiTFvCoTMlkw/45f/9IQ.fwn45lzCcHE4iaTzqfFihF7Q9zsU29W', '1234455221', '09603281984', '2026-03-11 11:22:42'),
 (4, 'JOANNA MARIE', 'OCENAR', 'CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', '2001-08-29', 'JOANNA MARIE OCENAR CARPESO', 'joannamariecarpeso@gmail.com', '$2y$10$t0fgcUfjVgRy47UQc3UCPuSh6XI1BM7RP0prydn7FIvEK.bNyf3sW', 'EG847478389', '09983894613', '2026-04-02 11:26:55'),
-(5, 'Jiro', 'Flojo', 'Beringuela', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 432, 'Camp Aguinaldo', '2001-10-10', 'Jiro Flojo Beringuela', 'beringuelajirocordial@gmail.com', '$2y$10$q6TVZRJVc1M4KLtY4BdE3upiQMC5FrsjvWnluF2uZKVI0iUB2ABdy', 'EG905992297', '09603281984', '2026-04-20 01:41:51');
+(5, 'Jiro', 'Flojo', 'Beringuela', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 432, 'Camp Aguinaldo', '2001-10-10', 'Jiro Flojo Beringuela', 'beringuelajirocordial@gmail.com', '$2y$10$q6TVZRJVc1M4KLtY4BdE3upiQMC5FrsjvWnluF2uZKVI0iUB2ABdy', 'EG905992297', '09603281984', '2026-04-20 01:41:51'),
+(6, 'Ambinoc', 'm', 'Ambinocbdl', 'gulod 17 blk13', 5, 'Bulacan', 42, 'Meycauayan City', 282, 'Barangay Langka', '2005-02-11', 'Ambinoc m Ambinocbdl', 'ahambinoc92@gmail.com', '$2y$10$wp4FwDLGZlIw4VucWm8wjepLakyNuFwxO9q53jy9RQq.kx9ZeGF8q', 'EG220951969', '09276436759', '2026-04-22 02:37:09'),
+(7, 'JEFFREY', 'SAGAL', 'CARPESO', '123 ABC STREET', 1, 'Metro Manila', 2, 'Quezon City', 508, 'Sauyo', '1999-04-27', 'JEFFREY SAGAL CARPESO', 'jepcarpeso027@gmail.com', '$2y$10$k95zDTiMm2gejiTAB2foPemR23uNaE5c8WCDC7m1tJp4Ace3bB3om', 'EG389595307', '09988221233', '2026-04-22 08:50:00');
 
 --
 -- Indexes for dumped tables
@@ -1224,43 +1246,43 @@ ALTER TABLE `barangays`
 -- AUTO_INCREMENT for table `loan_applications`
 --
 ALTER TABLE `loan_applications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `loan_approvals`
 --
 ALTER TABLE `loan_approvals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `loan_borrowers`
 --
 ALTER TABLE `loan_borrowers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `loan_documents`
 --
 ALTER TABLE `loan_documents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `loan_payments`
 --
 ALTER TABLE `loan_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `loan_rejections`
 --
 ALTER TABLE `loan_rejections`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `loan_types`
 --
 ALTER TABLE `loan_types`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `loan_valid_id`
@@ -1272,7 +1294,7 @@ ALTER TABLE `loan_valid_id`
 -- AUTO_INCREMENT for table `loan_valid_ids`
 --
 ALTER TABLE `loan_valid_ids`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `municipalities`
@@ -1296,7 +1318,7 @@ ALTER TABLE `provinces`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Constraints for dumped tables
