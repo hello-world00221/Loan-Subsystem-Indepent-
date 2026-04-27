@@ -342,10 +342,21 @@ $provincesJson      = json_encode($provinces);
       --eg-err-bg:  #fdf0ef;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: 'DM Sans', sans-serif;
       background: var(--eg-bg);
-      min-height: 100vh; display: flex; flex-direction: column;
+      /* FIXED: Use min-height + flex column so the page can grow beyond viewport */
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     /* ── Top bar ── */
@@ -355,6 +366,7 @@ $provincesJson      = json_encode($provinces);
       padding: 14px 28px; display: flex; align-items: center; gap: 12px;
       position: sticky; top: 0; z-index: 100;
       box-shadow: 0 2px 12px rgba(10,59,47,0.22);
+      flex-shrink: 0;
     }
     .top-bar img { height: 36px; }
     .top-bar-name {
@@ -364,11 +376,22 @@ $provincesJson      = json_encode($provinces);
     .top-bar-sub { font-size: 11px; color: rgba(255,255,255,0.65); letter-spacing: .3px; }
 
     /* ── Layout ── */
-    .page-body { display: flex; flex: 1; min-height: calc(100vh - 65px); }
+    /* FIXED: flex:1 so page-body fills all remaining vertical space */
+    .page-body {
+      display: flex;
+      flex: 1;
+      min-height: 0; /* allow flex children to shrink/scroll properly */
+    }
+
     .form-side {
-      width: 540px; min-width: 380px; background: white;
-      padding: 30px 40px 48px; overflow-y: auto;
-      display: flex; flex-direction: column;
+      width: 540px;
+      min-width: 320px;
+      background: white;
+      /* FIXED: overflow-y scroll on form-side so it scrolls independently on desktop */
+      overflow-y: auto;
+      padding: 30px 40px 48px;
+      display: flex;
+      flex-direction: column;
       border-right: 1px solid var(--eg-border);
       animation: slideIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
     }
@@ -556,6 +579,10 @@ $provincesJson      = json_encode($provinces);
       background: linear-gradient(145deg, #020f0b 0%, #051a10 40%, #0a3b2f 100%);
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       padding:60px 48px; position:relative; overflow:hidden;
+      /* FIXED: sticky so hero stays in view while form scrolls on desktop */
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 65px); /* 65px = top-bar approximate height */
       animation:fadeHero .8s ease both;
     }
     @keyframes fadeHero { from{opacity:0;} to{opacity:1;} }
@@ -659,10 +686,54 @@ $provincesJson      = json_encode($provinces);
     }
     .shake { animation: shake 0.45s ease both; }
 
-    @media (max-width:900px) { .hero-side{display:none;} .form-side{width:100%;border-right:none;} }
-    @media (max-width:540px) {
-      .form-side{padding:22px 16px 40px;}
-      .row-fields.cols-2,.row-fields.cols-3{grid-template-columns:1fr;}
+    /* ════════════════════════════════════════
+       RESPONSIVE BREAKPOINTS
+       ════════════════════════════════════════ */
+
+    /* Hide hero on tablets and below; form takes full width */
+    @media (max-width: 900px) {
+      .hero-side { display: none; }
+      .form-side {
+        width: 100%;
+        min-width: 0;
+        border-right: none;
+        /* On mobile, form-side should NOT be a fixed-height scroller —
+           let the page body itself scroll naturally */
+        overflow-y: visible;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .page-body {
+        justify-content: center;
+        /* Allow page-body to be as tall as content needs */
+        min-height: 0;
+        flex: unset;
+      }
+    }
+
+    /* Tablet portrait */
+    @media (max-width: 700px) {
+      .form-side {
+        padding: 24px 28px 48px;
+        max-width: 100%;
+      }
+      .top-bar { padding: 12px 20px; }
+    }
+
+    /* Mobile */
+    @media (max-width: 540px) {
+      .form-side { padding: 22px 16px 48px; }
+      .row-fields.cols-2,
+      .row-fields.cols-3 { grid-template-columns: 1fr; }
+      .acct-number { font-size: 16px; letter-spacing: 1px; }
+      .form-title { font-size: 22px; }
+    }
+
+    /* Very small */
+    @media (max-width: 360px) {
+      .form-side { padding: 18px 12px 40px; }
+      .top-bar img { height: 28px; }
+      .top-bar-name { font-size: 15px; }
     }
   </style>
 </head>

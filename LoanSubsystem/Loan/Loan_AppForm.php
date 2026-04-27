@@ -754,9 +754,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Listen for any input changes across the whole form to re-evaluate completion
+    /// Listen for any input changes across the whole form to re-evaluate completion
     document.getElementById('loanForm').addEventListener('input', updateProgressSteps);
     document.getElementById('loanForm').addEventListener('change', updateProgressSteps);
+
+    // ── Run once on load so pre-filled readonly fields (Account Information)
+    //    are immediately marked completed — no user interaction needed
+    updateProgressSteps();
 
     // ── Progress step scroll highlighting (only for non-completed steps) ─────
     const observer = new IntersectionObserver((entries) => {
@@ -866,13 +870,20 @@ function closeModal() {
 (function () {
     // ── Format definitions keyed by lowercase valid_id_type name ─────────────
     // Handles all 12 IDs in loan_valid_id (including duplicate "Postal ID" at id=2 and id=10)
-    const idFormats = {
+    const idFormats = { 
         "driver's license": {
             pattern:     /^[A-Z]\d{2}-\d{2}-\d{6}$/,
             hint:        "📋 Format: A00-00-000000 (e.g., N01-23-456789)",
             placeholder: "e.g., N01-23-456789",
             errorMsg:    "Invalid format. Expected: A00-00-000000 (e.g., N01-23-456789)"
         },
+        "tin id": {
+              pattern:     /^\d{3}-\d{3}-\d{3}(-\d{3})?$/,
+              hint:        "📋 Format: 000-000-000 or 000-000-000-000 (e.g., 123-456-789 or 123-456-789-000)",
+              placeholder: "e.g., 123-456-789 or 123-456-789-000",
+              errorMsg:    "Invalid format. Expected: 000-000-000 or 000-000-000-000 (e.g., 123-456-789)"
+        },             
+
         "postal id": {
             pattern:     /^\d{4}-\d{7}-\d$/,
             hint:        "📋 Format: 0000-0000000-0 (e.g., 1234-5678901-2)",

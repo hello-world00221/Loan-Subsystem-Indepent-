@@ -229,6 +229,7 @@ $navItems = [
     ['label' => 'Dashboard',          'href' => 'Employeedashboard.php', 'icon' => 'bi-speedometer2'],
     ['label' => 'Account Management', 'href' => 'add_officer.php',       'icon' => 'bi-person-gear'],
     ['label' => 'Audit Logs',         'href' => 'audit_logs.php',        'icon' => 'bi-journal-text'],
+    ['label' => 'Loan Penalties',     'href' => 'loan_penalty.php',      'icon' => 'bi-exclamation-triangle-fill'],
     ['label' => 'Manage Payments',    'href' => 'manage_payments.php',   'icon' => 'bi-credit-card-2-front'],
 ];
 $activeNav = 'Manage Payments';

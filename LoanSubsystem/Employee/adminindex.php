@@ -630,8 +630,6 @@ $totalLoans = array_sum($counts);
         <p><strong>Loan ID:</strong>         <span id="modal-loan-id"></span></p>
         <p><strong>Contact Number:</strong>  <span id="modal-contact-number"></span></p>
         <p><strong>Email:</strong>           <span id="modal-email"></span></p>
-        <p><strong>Job Title:</strong>       <span id="modal-job"></span></p>
-        <p><strong>Monthly Salary:</strong> ₱<span id="modal-monthly-salary"></span></p>
         <p><strong>Valid ID Type:</strong>   <span id="modal-valid-id-type"></span></p>
         <p><strong>Valid ID Number:</strong> <span id="modal-valid-id-number"></span></p>
         <hr>
@@ -763,8 +761,6 @@ $totalLoans = array_sum($counts);
         document.getElementById('modal-loan-id').textContent         = data.id              || '';
         document.getElementById('modal-contact-number').textContent  = data.contact_number  || '';
         document.getElementById('modal-email').textContent           = data.email           || '';
-        document.getElementById('modal-job').textContent             = data.job             || '';
-        document.getElementById('modal-monthly-salary').textContent  = parseFloat(data.monthly_salary || 0).toLocaleString(undefined, {minimumFractionDigits:2});
         document.getElementById('modal-valid-id-type').textContent   = data.valid_id_type   || 'N/A';
         document.getElementById('modal-valid-id-number').textContent = data.valid_id_number || 'N/A';
         document.getElementById('modal-loan-type').textContent       = data.loan_type       || '';

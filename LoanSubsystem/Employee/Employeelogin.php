@@ -128,16 +128,40 @@ $roleJson        = json_encode($_SESSION['pending_officer_role'] ?? '');
       --eg-error:#c0392b;--eg-err-bg:#fdf0ef;
     }
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'DM Sans',sans-serif;background:var(--eg-cream);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+
+    body {
+      font-family:'DM Sans',sans-serif;
+      background:var(--eg-cream);
+      /* FIXED: removed overflow:hidden — allow scrolling on tall content */
+      min-height:100vh;
+      min-height:100dvh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow-x:hidden;
+      overflow-y:auto;
+      /* FIXED: padding so card never kisses screen edges vertically */
+      padding:24px 0;
+    }
+
     .bg-mesh{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(10,59,47,0.18) 0%,transparent 70%),radial-gradient(ellipse 50% 50% at 90% 90%,rgba(26,107,85,0.12) 0%,transparent 70%),var(--eg-cream);}
     .bg-circle{position:fixed;border-radius:50%;opacity:0.06;background:var(--eg-forest);animation:drift 18s ease-in-out infinite alternate;}
     .bg-circle:nth-child(1){width:500px;height:500px;top:-120px;left:-100px;animation-delay:0s;}
     .bg-circle:nth-child(2){width:300px;height:300px;bottom:-80px;right:-60px;animation-delay:-6s;}
     @keyframes drift{from{transform:translate(0,0) scale(1);}to{transform:translate(20px,30px) scale(1.05);}}
 
-    .verify-card{position:relative;z-index:1;width:100%;max-width:920px;margin:24px;border-radius:20px;
-      overflow:hidden;box-shadow:0 20px 60px rgba(10,59,47,0.18);display:flex;min-height:560px;
-      animation:cardReveal 0.7s cubic-bezier(0.22,1,0.36,1) both;}
+    .verify-card{
+      position:relative;z-index:1;
+      width:100%;max-width:920px;
+      /* FIXED: margin keeps card off screen edges on all sides */
+      margin:0 24px;
+      border-radius:20px;
+      overflow:hidden;
+      box-shadow:0 20px 60px rgba(10,59,47,0.18);
+      display:flex;
+      min-height:560px;
+      animation:cardReveal 0.7s cubic-bezier(0.22,1,0.36,1) both;
+    }
     @keyframes cardReveal{from{opacity:0;transform:translateY(28px) scale(0.97);}to{opacity:1;transform:translateY(0) scale(1);}}
 
     .brand-panel{width:42%;background:linear-gradient(155deg,var(--eg-deep) 0%,var(--eg-forest) 45%,var(--eg-mid) 100%);
@@ -211,15 +235,107 @@ $roleJson        = json_encode($_SESSION['pending_officer_role'] ?? '');
     .back-link a{color:var(--eg-forest);font-weight:600;text-decoration:none;}
     .back-link a:hover{text-decoration:underline;}
 
-    @media(max-width:700px){
-      .verify-card{flex-direction:column;max-width:440px;}
-      .brand-panel{width:100%;padding:32px 28px;min-height:auto;}
-      .officer-id-card{display:none;}
-      .security-steps{display:none;}
-      .form-panel{width:100%;padding:36px 28px;}
-    }
     @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
     .shake{animation:shake 0.45s ease both;}
+
+    /* ════════════════════════════════════════
+       RESPONSIVE BREAKPOINTS
+       ════════════════════════════════════════ */
+
+    /* Tablet landscape */
+    @media(max-width:900px){
+      .verify-card{ max-width:720px; }
+      .brand-panel{ width:40%; padding:40px 28px; }
+      .form-panel{ width:60%; padding:40px 32px; }
+    }
+
+    /* Tablet portrait / stacked layout */
+    @media(max-width:700px){
+      body{
+        align-items:center;
+        padding:20px 0;
+      }
+      .verify-card{
+        flex-direction:column;
+        max-width:480px;
+        margin:0 16px;
+        min-height:auto;
+        border-radius:16px;
+      }
+      .brand-panel{
+        width:100%;
+        padding:28px 24px;
+        min-height:auto;
+        /* Compact horizontal layout on mobile */
+        flex-direction:row;
+        align-items:center;
+        gap:16px;
+        justify-content:flex-start;
+      }
+      .officer-id-card{ display:none; }
+      .security-steps{ display:none; }
+      .form-panel{ width:100%; padding:32px 24px; }
+      .form-heading h2{ font-size:24px; }
+    }
+
+    /* Mobile */
+    @media(max-width:600px){
+      body{ padding:16px 0; align-items:center; }
+      .verify-card{
+        margin:0 12px;
+        border-radius:14px;
+        min-height:auto;
+      }
+      .brand-panel{ padding:20px 20px 18px; }
+      .form-panel{ padding:24px 20px 28px; }
+      .form-heading h2{ font-size:22px; }
+      .field-group input{ font-size:14px; padding:12px 42px; }
+    }
+
+    /* Small mobile */
+    @media(max-width:480px){
+      body{ padding:12px 0; }
+      .verify-card{
+        margin:0 10px;
+        border-radius:12px;
+        width:calc(100% - 20px);
+      }
+      .brand-panel{ padding:16px 16px 14px; gap:12px; }
+      .brand-logo img{ height:30px; }
+      .brand-logo-text{ font-size:16px; }
+      .form-panel{ padding:20px 16px 24px; }
+      .form-heading h2{ font-size:20px; }
+      .btn-verify{ font-size:14px; padding:13px; }
+    }
+
+    /* Very small */
+    @media(max-width:360px){
+      .brand-logo img{ height:26px; }
+      .brand-logo-text{ font-size:14px; }
+      .form-panel{ padding:18px 14px 22px; }
+      .field-group input{ font-size:13.5px; }
+    }
+
+    /* Landscape mobile */
+    @media(max-height:500px) and (max-width:900px){
+      body{ align-items:flex-start; padding:12px 0 20px; }
+      .verify-card{
+        flex-direction:row;
+        margin:0 12px;
+        min-height:auto;
+        width:calc(100% - 24px);
+        border-radius:12px;
+      }
+      .brand-panel{
+        width:36%; padding:20px 18px;
+        flex-direction:column; justify-content:center;
+      }
+      .officer-id-card{ display:none; }
+      .security-steps{ display:none; }
+      .form-panel{ width:64%; padding:20px 24px; justify-content:flex-start; }
+      .form-heading{ margin-bottom:12px; }
+      .field-group{ margin-bottom:14px; }
+    }
   </style>
 </head>
 <body>

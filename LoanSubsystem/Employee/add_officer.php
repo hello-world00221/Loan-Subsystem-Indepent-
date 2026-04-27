@@ -392,10 +392,19 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
       --eg-gold-l: #e8c96b;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
     body {
       font-family: 'DM Sans', sans-serif;
       background: var(--eg-bg);
-      min-height: 100vh; display: flex; flex-direction: column;
+      /* FIXED: allow vertical scrolling so tall form content is reachable */
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     /* ── Top bar ── */
@@ -406,6 +415,7 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
       display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 100;
       box-shadow: 0 2px 12px rgba(10,59,47,0.22);
+      flex-shrink: 0;
     }
     .top-bar-left { display: flex; align-items: center; gap: 12px; }
     .top-bar-logo-icon {
@@ -431,11 +441,22 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
     .top-bar-back:hover { color: #fff; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); }
 
     /* ── Layout ── */
-    .page-body { display: flex; flex: 1; min-height: calc(100vh - 65px); }
+    /* FIXED: flex:1 + min-height:0 so page-body fills remaining space correctly */
+    .page-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
     .form-side {
-      width: 560px; min-width: 380px; background: white;
-      padding: 30px 40px 48px; overflow-y: auto;
-      display: flex; flex-direction: column;
+      width: 560px;
+      min-width: 320px;
+      background: white;
+      /* FIXED: independent scroll on desktop so form scrolls, hero stays fixed */
+      overflow-y: auto;
+      padding: 30px 40px 48px;
+      display: flex;
+      flex-direction: column;
       border-right: 1px solid var(--eg-border);
       animation: slideIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
     }
@@ -635,7 +656,12 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
       flex: 1;
       background: linear-gradient(145deg, #020f0b 0%, #051a10 40%, #0a3b2f 100%);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 60px 48px; position: relative; overflow: hidden;
+      padding: 60px 48px;
+      /* FIXED: sticky so hero stays visible while form side scrolls */
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 65px);
+      overflow: hidden;
       animation: fadeHero .8s ease both;
     }
     @keyframes fadeHero { from{opacity:0;} to{opacity:1;} }
@@ -740,10 +766,52 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
     }
     .shake { animation: shake 0.45s ease both; }
 
-    @media (max-width:960px) { .hero-side{display:none;} .form-side{width:100%;border-right:none;} }
-    @media (max-width:540px) {
-      .form-side{padding:22px 16px 40px;}
-      .row-fields.cols-2,.row-fields.cols-3{grid-template-columns:1fr;}
+    /* ════════════════════════════════════════
+       RESPONSIVE BREAKPOINTS
+       ════════════════════════════════════════ */
+
+    /* Hide hero on tablets/mobile; form takes full width */
+    @media (max-width: 960px) {
+      .hero-side { display: none; }
+      .form-side {
+        width: 100%;
+        min-width: 0;
+        border-right: none;
+        /* FIXED: on mobile, let page scroll naturally — don't confine to fixed height */
+        overflow-y: visible;
+        max-width: 640px;
+        margin: 0 auto;
+      }
+      .page-body {
+        justify-content: center;
+        flex: unset;
+        min-height: 0;
+      }
+    }
+
+    /* Tablet portrait */
+    @media (max-width: 700px) {
+      .form-side { padding: 24px 28px 48px; max-width: 100%; }
+      .top-bar { padding: 12px 16px; }
+      .top-bar-back span { display: none; } /* Hide "Back to Dashboard" text, keep icon */
+    }
+
+    /* Mobile */
+    @media (max-width: 540px) {
+      .form-side { padding: 22px 16px 48px; }
+      .row-fields.cols-2,
+      .row-fields.cols-3 { grid-template-columns: 1fr; }
+      .emp-number { font-size: 18px; letter-spacing: 2px; }
+      .form-title { font-size: 22px; }
+    }
+
+    /* Small mobile */
+    @media (max-width: 380px) {
+      .form-side { padding: 18px 12px 40px; }
+      .top-bar { padding: 10px 12px; }
+      .top-bar-name { font-size: 15px; }
+      .top-bar-logo-icon { width: 30px; height: 30px; }
+      .top-bar-logo-icon img { height: 18px; }
     }
   </style>
 </head>
@@ -761,7 +829,7 @@ if (isset($_GET['error']) && $_GET['error'] === 'toomany') {
     </div>
   </div>
   <a href="Employeedashboard.php" class="top-bar-back">
-    <i class="bi bi-arrow-left"></i> Back to Dashboard
+    <i class="bi bi-arrow-left"></i> <span>Back to Dashboard</span>
   </a>
 </div>
 

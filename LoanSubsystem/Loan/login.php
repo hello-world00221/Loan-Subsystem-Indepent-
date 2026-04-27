@@ -119,6 +119,9 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
       align-items: center;
       justify-content: center;
       overflow-x: hidden;
+      /* FIXED: always allow scrolling so card is never clipped on short viewports */
+      overflow-y: auto;
+      padding: 24px 0;
     }
 
     /* ── Background decorations ── */
@@ -141,7 +144,7 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
     .login-card {
       position: relative; z-index: 1;
       width: 100%; max-width: 920px;
-      margin: 24px;
+      margin: 0 24px;
       border-radius: 20px;
       overflow: hidden;
       box-shadow: 0 20px 60px rgba(10,59,47,0.18), 0 4px 20px rgba(10,59,47,0.10);
@@ -338,11 +341,16 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
 
     /* Tablet portrait: 601px – 700px */
     @media (max-width: 700px) {
+      body {
+        align-items: center;
+        padding: 20px 0;
+      }
       .login-card {
         flex-direction: column;
         max-width: 480px;
-        margin: 16px;
+        margin: 0 16px;
         border-radius: 16px;
+        min-height: auto;
       }
       .brand-panel {
         width: 100%;
@@ -353,9 +361,7 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
         justify-content: flex-start;
         gap: 24px;
       }
-      .brand-body {
-        flex: 1;
-      }
+      .brand-body { flex: 1; }
       .brand-tagline { font-size: 22px; margin-bottom: 8px; }
       .brand-desc { font-size: 13px; }
       .brand-footer { display: none; }
@@ -365,11 +371,14 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
 
     /* Mobile large: 481px – 600px */
     @media (max-width: 600px) {
-      body { align-items: flex-start; padding-top: 16px; padding-bottom: 16px; }
+      body {
+        align-items: center;
+        padding: 16px 0;
+      }
       .login-card {
         flex-direction: column;
         max-width: 100%;
-        margin: 12px;
+        margin: 0 12px;
         border-radius: 14px;
         min-height: auto;
       }
@@ -395,8 +404,20 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
 
     /* Mobile small: up to 480px */
     @media (max-width: 480px) {
-      .login-card { margin: 0; border-radius: 0; min-height: 100vh; min-height: 100dvh; }
-      body { align-items: flex-start; padding: 0; }
+      body {
+        align-items: center;
+        padding: 16px 0;
+        /* Use min-height so body can grow taller than viewport on short screens */
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+      .login-card {
+        margin: 0 10px;
+        border-radius: 12px;
+        /* Remove full-bleed stretch — keep card naturally sized */
+        min-height: auto;
+        width: calc(100% - 20px);
+      }
       .brand-panel { padding: 20px 20px 18px; }
       .brand-tagline { font-size: 18px; }
       .form-panel { padding: 24px 20px 28px; }
@@ -408,6 +429,12 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
 
     /* Very small screens: up to 360px */
     @media (max-width: 360px) {
+      body { padding: 12px 0; }
+      .login-card {
+        margin: 0 8px;
+        width: calc(100% - 16px);
+        border-radius: 10px;
+      }
       .brand-panel { padding: 16px 16px 14px; gap: 12px; }
       .brand-logo-text { font-size: 15px; }
       .brand-logo img { height: 28px; }
@@ -416,10 +443,19 @@ $fullNameJson     = json_encode($_SESSION['pending_officer_name'] ?? $_SESSION['
       .field-group input { font-size: 13.5px; }
     }
 
-    /* Landscape orientation on mobile */
+    /* Landscape orientation on mobile — keep card visible without full-bleed */
     @media (max-height: 500px) and (max-width: 900px) {
-      body { align-items: flex-start; padding: 12px 0; }
-      .login-card { flex-direction: row; margin: 12px; min-height: auto; }
+      body {
+        align-items: flex-start;
+        padding: 12px 0 20px;
+      }
+      .login-card {
+        flex-direction: row;
+        margin: 0 12px;
+        min-height: auto;
+        width: calc(100% - 24px);
+        border-radius: 12px;
+      }
       .brand-panel {
         width: 38%; padding: 24px 20px;
         flex-direction: column; justify-content: center;

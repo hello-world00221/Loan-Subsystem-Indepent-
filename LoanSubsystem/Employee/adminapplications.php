@@ -219,23 +219,27 @@ function buildLoanQuery(string $whereClause): string {
     }
     .modal.show { display: flex; }
 
-    /* ── Modal box ── */
+    /* ── Modal box: flex column so header+footer are fixed,
+          only the body scrolls ── */
     .status-modal {
       background: #fff; border-radius: 16px;
       width: 100%; max-width: 820px;
-      max-height: 90vh; overflow-y: auto;
-      position: relative;
+      max-height: 90vh;
+      display: flex; flex-direction: column;
       box-shadow: 0 8px 40px rgba(0,0,0,.18);
+      overflow: hidden; /* clip rounded corners */
     }
 
+    /* ── Modal header — never scrolls away ── */
     .modal-header-bar {
       background: var(--brand-dark); color: #fff;
       padding: 1rem 1.25rem;
       border-radius: 16px 16px 0 0;
       display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 10;
+      flex-shrink: 0; /* prevent it from shrinking */
     }
-    .modal-header-bar h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+    .modal-header-bar h2 { margin: 0; font-size: 1rem; font-weight: 700; color: #ffffff !important; }
+    .modal-header-bar h2 i { color: #ffffff !important; }
 
     .close-status {
       background: none; border: none;
@@ -244,7 +248,13 @@ function buildLoanQuery(string $whereClause): string {
     }
     .close-status:hover { opacity: .7; }
 
-    .modal-body-pad { padding: 1.25rem; }
+    /* ── Scrollable body ── */
+    .modal-body-pad {
+      padding: 1.25rem;
+      overflow-y: auto;          /* this section scrolls */
+      flex: 1 1 auto;            /* takes remaining height */
+      -webkit-overflow-scrolling: touch;
+    }
 
     /* ── Modal section heading ── */
     .modal-section-title {
@@ -284,14 +294,14 @@ function buildLoanQuery(string $whereClause): string {
     .view-doc-btn:hover:not(:disabled) { background: #c8e6c9; }
     .view-doc-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-    /* ── Modal footer buttons ── */
+    /* ── Modal footer — never scrolls away ── */
     .modal-footer-bar {
       display: flex; justify-content: flex-end; gap: 0.6rem;
       padding: 0.9rem 1.25rem;
       border-top: 1px solid #f0f0f0;
       flex-wrap: wrap;
-      position: sticky; bottom: 0;
-      background: #fff; z-index: 10;
+      flex-shrink: 0; /* prevent it from shrinking */
+      background: #fff;
     }
     .back-status {
       background: #f0f0f0; color: #333; border: none;
@@ -519,11 +529,13 @@ function buildLoanQuery(string $whereClause): string {
 <div id="statusModal" class="modal">
   <div class="status-modal">
 
+    <!-- HEADER — always visible, never scrolls away -->
     <div class="modal-header-bar">
       <h2><i class="fas fa-file-invoice-dollar me-2"></i>Loan Application Details</h2>
       <button class="close-status" onclick="closeApplicationModal()"><i class="fas fa-times"></i></button>
     </div>
 
+    <!-- SCROLLABLE BODY — only this section scrolls -->
     <div class="modal-body-pad">
 
       <!-- Account Information -->
@@ -534,8 +546,6 @@ function buildLoanQuery(string $whereClause): string {
         <div class="field"><label>Loan ID</label>         <input type="text" id="modal-loan-id"         readonly></div>
         <div class="field"><label>Contact Number</label>  <input type="text" id="modal-contact-number"  readonly></div>
         <div class="field"><label>Email Address</label>   <input type="text" id="modal-email"           readonly></div>
-        <div class="field"><label>Job Title</label>       <input type="text" id="modal-job"             readonly></div>
-        <div class="field"><label>Monthly Salary</label>  <input type="text" id="modal-monthly-salary"  readonly></div>
         <div class="field"><label>Date Applied</label>    <input type="text" id="modal-date-applied"    readonly></div>
       </div>
 
@@ -590,7 +600,7 @@ function buildLoanQuery(string $whereClause): string {
 
     </div><!-- /modal-body-pad -->
 
-    <!-- Action Buttons -->
+    <!-- FOOTER — always visible, never scrolls away -->
     <div class="modal-footer-bar">
       <button class="back-status"  onclick="closeApplicationModal()"><i class="fas fa-arrow-left me-1"></i>Back</button>
       <button id="approve-btn" class="approve-btn" onclick="confirmAndApproveLoan()"><i class="fas fa-check me-1"></i>Approve</button>
@@ -635,9 +645,6 @@ function buildLoanQuery(string $whereClause): string {
         document.getElementById('modal-loan-id').value        = data.id              || '';
         document.getElementById('modal-contact-number').value = data.contact_number  || '';
         document.getElementById('modal-email').value          = data.email           || data.borrower_email || '';
-        document.getElementById('modal-job').value            = data.job             || '';
-        document.getElementById('modal-monthly-salary').value =
-          '₱' + parseFloat(data.monthly_salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
         document.getElementById('modal-date-applied').value   = data.created_at
           ? new Date(data.created_at).toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'})
           : 'N/A';

@@ -45,22 +45,103 @@ if (!isset($_SESSION['user_email'])) {
     }
 }
 
-// ─── FETCH USER DETAILS ────────────────────────────────────────────────────────
-$profileUser = null;
+// ─── CONNECT TO loandb ────────────────────────────────────────────────────────
+$host   = "localhost";
+$dbuser = "root";
+$dbpass = "";
+$dbname = "loandb";
+
 try {
-    if (!isset($pdo)) {
-        $pdo = new PDO(
-            "mysql:host=localhost;dbname=loandb;charset=utf8mb4",
-            "root", "",
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
-    }
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE user_email = ? LIMIT 1");
-    $stmt->execute([$_SESSION['user_email']]);
-    $profileUser = $stmt->fetch(PDO::FETCH_ASSOC);
+    $pdo = new PDO(
+        "mysql:host=$host;dbname=$dbname;charset=utf8mb4",
+        $dbuser, $dbpass,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 } catch (PDOException $e) {
-    // silently fail
+    die("Database connection failed. Please contact admin.");
 }
+
+// ─── BUILD $currentUser ───────────────────────────────────────────────────────
+$currentUser = null;
+try {
+    $stmt = $pdo->prepare(
+        "SELECT full_name, user_email, contact_number, account_number
+         FROM users WHERE user_email = ? LIMIT 1"
+    );
+    $stmt->execute([$_SESSION['user_email']]);
+    $currentUser = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {}
+
+if (!$currentUser) {
+    $currentUser = [
+        'full_name'      => $_SESSION['user_name'] ?? $_SESSION['full_name'] ?? '',
+        'user_email'     => $_SESSION['user_email'],
+        'contact_number' => '',
+        'account_number' => '',
+    ];
+}
+
+// ─── FETCH REMAINING BALANCES (mirrors Payment.php logic) ─────────────────────
+$remainingBalancesMap = [];
+try {
+    $rbStmt = $pdo->prepare("
+        SELECT
+            la.id                           AS loan_id,
+            la.loan_amount,
+            COALESCE(SUM(lp.amount), 0)     AS total_paid
+        FROM   loan_applications la
+        LEFT JOIN loan_payments lp
+               ON  lp.loan_application_id = la.id
+               AND lp.status = 'Completed'
+        WHERE  la.user_email = ?
+        GROUP  BY la.id, la.loan_amount
+    ");
+    $rbStmt->execute([$_SESSION['user_email']]);
+    foreach ($rbStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $remaining = max(0, floatval($row['loan_amount']) - floatval($row['total_paid']));
+        $remainingBalancesMap[(int)$row['loan_id']] = round($remaining, 2);
+    }
+} catch (PDOException $e) {}
+
+// ─── FETCH ACTIVE PENALTIES for this user ─────────────────────────────────────
+// penalty_map: { loan_id => { penalty_amount, total_balance_with_penalty, months_overdue, penalty_rate } }
+$penaltyMap = [];
+try {
+    $penStmt = $pdo->prepare("
+        SELECT
+            loan_application_id AS loan_id,
+            penalty_amount,
+            total_balance_with_penalty,
+            months_overdue,
+            penalty_rate,
+            original_balance
+        FROM loan_penalties
+        WHERE user_email = ? AND status = 'Active'
+    ");
+    $penStmt->execute([$_SESSION['user_email']]);
+    foreach ($penStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $penaltyMap[(int)$row['loan_id']] = [
+            'penalty_amount'             => round((float)$row['penalty_amount'], 2),
+            'total_balance_with_penalty' => round((float)$row['total_balance_with_penalty'], 2),
+            'months_overdue'             => (int)$row['months_overdue'],
+            'penalty_rate'               => (float)$row['penalty_rate'],
+            'original_balance'           => round((float)$row['original_balance'], 2),
+        ];
+    }
+} catch (PDOException $e) {
+    // loan_penalties table might not exist yet — silently ignore
+}
+
+// ─── CHECK if ANY loan is overdue (for showing the Penalty column) ────────────
+$hasAnyPenalty = !empty($penaltyMap);
+
+// ─── DYNAMIC BASE URL ─────────────────────────────────────────────────────────
+$_SCHEME      = (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) ? $_SERVER['HTTP_X_FORWARDED_PROTO'] : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http'));
+$_HOST        = $_SERVER['HTTP_HOST'];
+$_BASE_URL    = $_SCHEME . '://' . $_HOST . '/Evergreen-loan-main/LoanSubsystem';
+$_PAYMENT_URL = $_BASE_URL . '/Payment/Payment.php';
+
+$profileUser = $currentUser;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,7 +150,6 @@ try {
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard – Evergreen Trust and Savings</title>
   <link rel="icon" type="logo/png" href="pictures/logo.png" />
-
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <link rel="stylesheet" href="style.css">
@@ -80,6 +160,8 @@ try {
       --eg-mid:    #005a4d;
       --eg-light:  #00796b;
       --eg-accent: #1db57a;
+      --eg-danger: #c0392b;
+      --eg-warn:   #e67e22;
     }
 
     body { background: #f0faf6; }
@@ -128,20 +210,117 @@ try {
     .stat-card { background: #fff; border: 1px solid #dceee8; border-radius: 1rem; padding: 1.4rem 1.25rem; text-align: center; box-shadow: 0 2px 10px rgba(0,54,49,.05); }
     .stat-label { font-size: .78rem; color: #6c757d; text-transform: uppercase; letter-spacing: .8px; margin-bottom: .35rem; }
     .stat-value { font-size: 2.1rem; font-weight: 800; color: var(--eg-dark); margin: 0; }
-    /* Closed stat card — golden highlight */
     .stat-card.stat-closed { background: linear-gradient(135deg, #f7f3e8, #fdf6d8); border-color: rgba(201,168,76,.35); }
     .stat-card.stat-closed .stat-value { color: #7a5200; }
     .stat-card.stat-closed .stat-label { color: #9a7020; }
+    /* ── PENALTY stat card ── */
+    .stat-card.stat-overdue { background: linear-gradient(135deg,#fff5f4,#fff0ef); border-color: rgba(192,57,43,0.30); }
+    .stat-card.stat-overdue .stat-value { color: var(--eg-danger); }
+    .stat-card.stat-overdue .stat-label { color: #8b1a1a; }
 
-    /* Loan table */
-    .loan-table-wrapper { border: 1px solid #dceee8; border-radius: 1rem; overflow: hidden; background: #fff; box-shadow: 0 2px 12px rgba(0,54,49,.06); }
+    /* ── Loan table ── */
+    .loan-table-wrapper {
+      border: 1px solid #dceee8; border-radius: 1rem; overflow: hidden;
+      background: #fff; box-shadow: 0 2px 12px rgba(0,54,49,.06);
+    }
     .loan-table-wrapper table { margin: 0; }
-    .loan-table-wrapper thead th { background: var(--eg-dark); color: #fff; font-size: .78rem; text-transform: uppercase; letter-spacing: .6px; border: none; padding: .9rem 1rem; }
-    .loan-table-wrapper tbody td { padding: .85rem 1rem; font-size: .92rem; border-color: #e8f4ee; vertical-align: middle; }
+    .loan-table-wrapper thead th {
+      background: var(--eg-dark); color: #fff; font-size: .78rem;
+      text-transform: uppercase; letter-spacing: .6px; border: none;
+      padding: .9rem 1rem; white-space: nowrap;
+    }
+    /* ── Penalty column header highlight ── */
+    .loan-table-wrapper thead th.th-penalty {
+      background: linear-gradient(135deg, #8b1a1a, #c0392b);
+      animation: pulseBg 2.5s ease-in-out infinite;
+    }
+    @keyframes pulseBg {
+      0%,100% { background: linear-gradient(135deg,#8b1a1a,#c0392b); }
+      50%      { background: linear-gradient(135deg,#c0392b,#e74c3c); }
+    }
+    .loan-table-wrapper tbody td {
+      padding: .85rem 1rem; font-size: .92rem;
+      border-color: #e8f4ee; vertical-align: middle;
+    }
     .loan-table-wrapper tbody tr:hover td { background: #f0faf6; }
-    /* Highlight closed/paid rows */
     .loan-table-wrapper tbody tr.row-closed td { background: #f5fdf8; }
     .loan-table-wrapper tbody tr.row-closed:hover td { background: #e8f8ef; }
+    /* ── Overdue row highlight ── */
+    .loan-table-wrapper tbody tr.row-overdue td { background: #fff5f4; }
+    .loan-table-wrapper tbody tr.row-overdue:hover td { background: #ffeeec; }
+
+    .table-scroll-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .table-scroll-wrap::-webkit-scrollbar { height: 5px; width: 5px; }
+    .table-scroll-wrap::-webkit-scrollbar-track { background: #f0faf6; }
+    .table-scroll-wrap::-webkit-scrollbar-thumb { background: #a8d5c2; border-radius: 4px; }
+    .loan-table-wrapper table { min-width: 760px; }
+
+    /* ── Balance cells ── */
+    .balance-active { font-weight: 700; color: #b45309; }
+    .balance-zero {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: linear-gradient(90deg, #0a3b2f, #1a6b55);
+      color: #e8c96b; font-size: .78rem; font-weight: 700;
+      padding: 3px 9px; border-radius: .45rem; letter-spacing: .3px;
+    }
+    .balance-na { color: #aaa; font-size: .85rem; font-style: italic; }
+
+    /* ── PENALTY CELLS ── */
+    .balance-with-penalty {
+      font-weight: 800;
+      color: var(--eg-danger);
+    }
+    .penalty-breakdown {
+      font-size: .72rem;
+      color: var(--eg-danger);
+      opacity: .8;
+      margin-top: 2px;
+    }
+    .penalty-badge-inline {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #ffebee; color: #b71c1c;
+      font-size: .68rem; font-weight: 700;
+      padding: 2px 7px; border-radius: 5px;
+      border: 1px solid #ef9a9a;
+      margin-top: 3px;
+    }
+    .overdue-row-label {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: linear-gradient(90deg,#c0392b,#e74c3c);
+      color: #fff; font-size: .66rem; font-weight: 700;
+      padding: 2px 7px; border-radius: 5px;
+      text-transform: uppercase; letter-spacing: .3px;
+    }
+
+    /* ── Penalty-specific cell styles ── */
+    .td-penalty-active {
+      background: rgba(255,235,238,0.6) !important;
+    }
+    .td-penalty-none {
+      color: #aaa; font-size: .8rem; font-style: italic; text-align: center;
+    }
+    .penalty-amount-cell {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .penalty-fee-value {
+      font-weight: 800; color: #c0392b; font-size: .95rem;
+    }
+    .penalty-months-tag {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #ffebee; color: #b71c1c;
+      font-size: .65rem; font-weight: 700;
+      padding: 1px 6px; border-radius: 4px;
+      border: 1px solid #ef9a9a;
+      width: fit-content;
+    }
+    .penalty-rate-note {
+      font-size: .65rem; color: #999; margin-top: 1px;
+    }
 
     .loan-footer {
       background: #f8faf9; border-top: 1px solid #dceee8; padding: 1rem 1.25rem;
@@ -156,19 +335,30 @@ try {
     }
     .btn-payment:hover { background-color: #218838; color: #fff; transform: translateY(-1px); }
 
-    /* ── NEW: Closed loan row status display ── */
+    /* ── Overdue alert banner ── */
+    .overdue-alert-banner {
+      background: linear-gradient(135deg,#fff5f4,#ffe8e6);
+      border: 1.5px solid rgba(192,57,43,0.35);
+      border-radius: 1rem;
+      padding: 1.1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .overdue-alert-banner .alert-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .overdue-alert-banner h4 { color: #b71c1c; font-size: .95rem; font-weight: 700; margin: 0 0 .25rem; }
+    .overdue-alert-banner p  { color: #7d1c1c; font-size: .85rem; margin: 0; line-height: 1.5; }
+
+    /* Closed status */
     .status-closed-cell {
       display: inline-flex; align-items: center; gap: 5px;
       background: linear-gradient(90deg, #0a3b2f, #1a6b55);
       color: #e8c96b; font-size: .82rem; font-weight: 700;
       padding: 3px 10px; border-radius: .5rem;
-    }
-    .paid-chip {
-      display: inline-flex; align-items: center; gap: 3px;
-      background: linear-gradient(90deg,#0a3b2f,#1a6b55);
-      color: #e8c96b; font-size: .65rem; font-weight: 700;
-      padding: 1px 7px; border-radius: 6px; letter-spacing: .4px;
-      text-transform: uppercase; margin-top: 3px;
     }
 
     /* Notifications panel */
@@ -189,7 +379,6 @@ try {
     }
     @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
 
-    /* Notification Modal */
     .notification-modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,.55); animation: fadeIn .3s; }
     .notification-modal-content { background: #fefefe; margin: 3% auto; border-radius: .9rem; width: 90%; max-width: 700px; max-height: 85vh; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.2); animation: slideDown .35s ease-out; }
     .notification-modal-header { background: linear-gradient(135deg, var(--eg-dark) 0%, var(--eg-mid) 100%); color: #fff; padding: 1.4rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--eg-light); }
@@ -198,30 +387,28 @@ try {
     .notification-close:hover { transform: rotate(90deg); }
     .notification-modal-body { padding: 1.5rem; max-height: 65vh; overflow-y: auto; background: #f8f9fa; }
 
-    .notification-header-text { background: #fff; padding: 1rem; border-radius: .5rem; margin-bottom: 1.25rem; border-left: 4px solid var(--eg-dark); }
-    .notification-header-text h3 { margin: 0; color: var(--eg-dark); font-size: 1rem; }
-
     .notification-item { background: #fff; border-left: 5px solid var(--eg-dark); padding: 1.2rem; margin-bottom: 1rem; border-radius: .5rem; transition: all .25s; box-shadow: 0 2px 8px rgba(0,0,0,.06); line-height: 1.5; }
     .notification-item:hover { transform: translateX(6px); box-shadow: 0 4px 16px rgba(0,0,0,.1); }
     .notification-item.approved { border-left-color: #4CAF50; background: linear-gradient(to right, #e8f5e9 0%, #fff 12%); }
     .notification-item.active   { border-left-color: #2e7d32; background: linear-gradient(to right, #c8e6c9 0%, #fff 12%); }
     .notification-item.rejected { border-left-color: #f44336; background: linear-gradient(to right, #ffebee 0%, #fff 12%); }
     .notification-item.closed   { border-left-color: #0a3b2f; background: linear-gradient(to right, #d0ece0 0%, #fff 12%); }
+    .notification-item.overdue  { border-left-color: #c0392b; background: linear-gradient(to right, #ffebee 0%, #fff 12%); }
     .notification-item h3 { margin: 0 0 .75rem; color: var(--eg-dark); font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
     .notification-item.approved h3 { color: #4CAF50; }
     .notification-item.active   h3 { color: #2e7d32; }
     .notification-item.rejected h3 { color: #c62828; }
     .notification-item.closed   h3 { color: #0a3b2f; }
+    .notification-item.overdue  h3 { color: #c0392b; }
     .status-badge { display: inline-block; padding: 3px 10px; border-radius: 1rem; font-size: .8rem; font-weight: 700; }
     .status-badge.approved { background: #4CAF50; color: #fff; }
     .status-badge.active   { background: #2e7d32; color: #fff; }
     .status-badge.rejected { background: #f44336; color: #fff; }
     .status-badge.closed   { background: linear-gradient(90deg, #0a3b2f, #1a6b55); color: #e8c96b; }
+    .status-badge.overdue  { background: #c0392b; color: #fff; }
     .notification-item p { margin: .4rem 0; color: #555; font-size: .92rem; }
     .notification-item p strong { color: var(--eg-dark); font-weight: 600; display: inline-block; min-width: 160px; }
     .notification-divider { height: 1px; background: linear-gradient(to right, transparent, #ddd, transparent); margin: .6rem 0; }
-    .notification-empty { text-align: center; padding: 3rem 1rem; color: #999; }
-    .notification-empty i { font-size: 3.5rem; color: #ddd; margin-bottom: 1rem; display: block; }
     .notification-timestamp { font-size: .82rem; color: #888; font-style: italic; margin-top: .6rem; }
 
     .pdf-actions { margin-top: .9rem; padding-top: .6rem; border-top: 1px solid #eee; display: flex; gap: .5rem; flex-wrap: wrap; }
@@ -234,7 +421,6 @@ try {
     @keyframes fadeIn    { from{opacity:0}  to{opacity:1} }
     @keyframes slideDown { from{transform:translateY(-80px);opacity:0} to{transform:translateY(0);opacity:1} }
 
-    /* Footer */
     footer { background: var(--eg-dark); color: #cde8e1; padding: 2rem 1.5rem 1rem; }
     .footer-logo { width: 90px; margin-bottom: .75rem; }
     .footer-tagline { font-size: .87rem; color: #9abfba; line-height: 1.6; }
@@ -248,7 +434,17 @@ try {
     .footer-bottom a { color: #9abfba; text-decoration: none; }
     .footer-bottom a:hover { color: #fff; }
 
-    @media (max-width: 768px) { .profile-badges { margin-left: 0; } }
+    @media (max-width: 768px) {
+      .profile-badges { margin-left: 0; }
+      .loan-footer { flex-direction: column; align-items: flex-start; }
+      .btn-payment  { width: 100%; text-align: center; }
+      .loan-table-wrapper thead th,
+      .loan-table-wrapper tbody td { font-size: .78rem; padding: .65rem .6rem; }
+    }
+    @media (max-width: 480px) {
+      .stat-value { font-size: 1.6rem; }
+      .stat-label { font-size: .7rem; }
+    }
   </style>
 </head>
 <body>
@@ -303,64 +499,79 @@ try {
       </div>
     </div>
 
-    <!-- ── Stats row ── -->
-    <!--
-      activeLoansCount  = loans with status 'active'
-      pendingLoansCount = loans with status 'pending'
-      closedLoansCount  = loans with status 'closed' (fully paid) — golden card
-    -->
+    <!-- ── Overdue alert banner (shown only if user has active penalties) ── -->
+    <?php if (!empty($penaltyMap)): ?>
+    <div class="overdue-alert-banner" id="overdueBanner">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <h4>Overdue Payment — Penalty Applied</h4>
+        <p>
+          You have <strong><?= count($penaltyMap) ?></strong> overdue loan<?= count($penaltyMap) > 1 ? 's' : '' ?> with
+          active late payment penalties. Your outstanding balance has increased.
+          Please <a href="<?= htmlspecialchars($_PAYMENT_URL) ?>" style="color:#b71c1c;font-weight:700;">make a payment now</a>
+          to stop further penalty accumulation.
+        </p>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Stats row -->
     <div class="row g-3 mb-4">
-      <div class="col-4">
+      <div class="col-3">
         <div class="stat-card">
           <p class="stat-label">Active Loans</p>
           <p class="stat-value" id="activeLoansCount">0</p>
         </div>
       </div>
-      <div class="col-4">
+      <div class="col-3">
         <div class="stat-card">
           <p class="stat-label">Pending</p>
           <p class="stat-value" id="pendingLoansCount">0</p>
         </div>
       </div>
-      <div class="col-4 stat-closed-wrapper">
-        <!-- This card is dynamically styled golden when closedLoansCount > 0 -->
+      <div class="col-3">
         <div class="stat-card" id="statClosedCard">
           <p class="stat-label">Fully Paid</p>
           <p class="stat-value" id="closedLoansCount">0</p>
         </div>
       </div>
+      <!-- ── Overdue count stat ── -->
+      <div class="col-3">
+        <div class="stat-card" id="statOverdueCard">
+          <p class="stat-label">Overdue</p>
+          <p class="stat-value" id="overdueLoansCount">0</p>
+        </div>
+      </div>
     </div>
 
-    <!-- ── Loan Table + Notifications ── -->
+    <!-- Loan Table + Notifications -->
     <div class="row g-4">
-
-      <!-- Loan Table -->
       <div class="col-lg-8">
         <div class="loan-table-wrapper">
-          <div style="max-height:400px;overflow-y:auto;">
-            <table class="table table-hover mb-0">
+          <div class="table-scroll-wrap">
+            <table class="table table-hover mb-0" id="loanTable">
               <thead>
-                <tr>
+                <tr id="loanTableHead">
                   <th>Loan ID</th>
                   <th>Type</th>
                   <th>Amount</th>
                   <th>Monthly</th>
+                  <th>Outstanding</th>
+                  <!-- ── Penalty column: only injected by JS when there are overdue loans ── -->
                   <th>Status</th>
                   <th>Next Due / Info</th>
                 </tr>
               </thead>
               <tbody id="loanTableBody">
-                <tr><td colspan="6" class="text-center py-4">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center py-4">Loading…</td></tr>
               </tbody>
             </table>
           </div>
           <div class="loan-footer">
             <p>Next payment due: <strong id="nextPaymentDate">—</strong></p>
-            <button type="button"
-              class="btn-payment"
-              onclick="location.href='http://localhost/Evergreen-loan-main/LoanSubsystem/Payment/Payment.php'">
+            <a href="<?= htmlspecialchars($_PAYMENT_URL) ?>" class="btn-payment">
               <i class="fas fa-credit-card me-1"></i> Make a Payment
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -376,12 +587,11 @@ try {
           </button>
         </div>
       </div>
-
     </div>
   </div>
 </div>
 
-<!-- ══ NOTIFICATION MODAL ═══════════════════════════════════════════════════════ -->
+<!-- NOTIFICATION MODAL -->
 <div id="notificationModal" class="notification-modal">
   <div class="notification-modal-content">
     <div class="notification-modal-header">
@@ -389,10 +599,7 @@ try {
       <button class="notification-close" onclick="closeNotificationModal()">&times;</button>
     </div>
     <div class="notification-modal-body" id="notificationModalBody">
-      <div class="notification-empty">
-        <i class="fas fa-bell-slash"></i>
-        <p>No notifications yet.</p>
-      </div>
+      <div style="text-align:center;padding:3rem 1rem;color:#999;">No notifications yet.</div>
     </div>
   </div>
 </div>
@@ -423,17 +630,16 @@ try {
         <a href="#">Personal Loans</a>
         <a href="#">Auto Loans</a>
         <a href="#">Multipurpose Loans</a>
-        <a href="#">Website Banking</a>
       </div>
       <div class="col-lg-3 col-md-6 footer-col">
         <h3>Contact Us</h3>
         <p style="font-size:.87rem; color:#9abfba;"><i class="fas fa-phone-alt me-2"></i>1-800-EVERGREEN</p>
         <p style="font-size:.87rem; color:#9abfba;"><i class="fas fa-envelope me-2"></i>support@evergreenbank.com</p>
-        <p style="font-size:.87rem; color:#9abfba;"><i class="fas fa-map-marker-alt me-2"></i>123 Financial District, Suite 500, New York, NY 10004</p>
+        <p style="font-size:.87rem; color:#9abfba;"><i class="fas fa-map-marker-alt me-2"></i>123 Financial District, New York, NY 10004</p>
       </div>
     </div>
     <hr class="footer-divider">
-    <div class="d-flex flex-wrap justify-content-between align-items-center footer-bottom gap-2">
+    <div class="d-flex flex-wrap justify-content: space-between; align-items-center footer-bottom gap-2">
       <p class="mb-0">&copy; 2025 Evergreen Bank. All rights reserved.</p>
       <div class="d-flex flex-wrap gap-3">
         <a href="Privacy.php">Privacy Policy</a>
@@ -441,7 +647,6 @@ try {
         <a href="FAQs.php">FAQs</a>
         <a href="AboutUs.php">About Us</a>
       </div>
-      <p class="mb-0">Member FDIC. Equal Housing Lender. Evergreen Bank, N.A.</p>
     </div>
   </div>
 </footer>
@@ -449,334 +654,395 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+// ── PHP-injected data available to JS ─────────────────────────────────────────
+const phpRemainingMap = <?= json_encode($remainingBalancesMap, JSON_NUMERIC_CHECK) ?>;
+// Penalty map: { loan_id: { penalty_amount, total_balance_with_penalty, months_overdue, penalty_rate, original_balance } }
+const phpPenaltyMap   = <?= json_encode($penaltyMap, JSON_NUMERIC_CHECK) ?>;
+// Whether any loan is currently overdue (server-side check)
+const hasAnyPenalty   = <?= json_encode($hasAnyPenalty) ?>;
+
 let allLoans         = [];
 let allNotifications = [];
 
-document.addEventListener("DOMContentLoaded", async function () {
-  const tbody               = document.getElementById('loanTableBody');
-  const activeLoansCount    = document.getElementById('activeLoansCount');
-  const pendingLoansCount   = document.getElementById('pendingLoansCount');
-  const closedLoansCount    = document.getElementById('closedLoansCount');
-  const statClosedCard      = document.getElementById('statClosedCard');
-  const nextPaymentDate     = document.getElementById('nextPaymentDate');
-  const notificationMessage = document.getElementById('notificationMessage');
-  const notificationBadge   = document.getElementById('notificationBadge');
+// ── Helper: pick best remaining balance source ─────────────────────────────
+function getRemainingBalance(loan) {
+    const loanId = parseInt(loan.id, 10);
 
-  async function loadLoans() {
-    try {
-      const response = await fetch('fetch_loan.php', { method: 'GET', credentials: 'include' });
-      if (!response.ok) throw new Error('Network response was not ok');
-
-      const loans = await response.json();
-      if (loans.error) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:red;">${loans.error}</td></tr>`;
-        return;
-      }
-
-      allLoans = loans;
-      allNotifications = [];
-
-      loans.forEach((loan) => {
-        const status = (loan.status || '').toLowerCase();
-
-        // Approved notification
-        if (loan.approved_at && (status === 'approved' || status === 'active')) {
-          allNotifications.push({
-            id: loan.id, type: 'approved',
-            loan_type: loan.loan_type, loan_amount: loan.loan_amount,
-            loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment,
-            remarks: loan.remarks, timestamp: loan.approved_at,
-            pdf_path: loan.pdf_approved || null
-          });
-        }
-        // Active notification
-        if (status === 'active' && loan.approved_at) {
-          allNotifications.push({
-            id: loan.id, type: 'active',
-            loan_type: loan.loan_type, loan_amount: loan.loan_amount,
-            loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment,
-            next_payment_due: loan.next_payment_due, remarks: loan.remarks,
-            timestamp: loan.approved_at, pdf_path: loan.pdf_active || null
-          });
-        }
-        // Rejected notification
-        if (status === 'rejected' && loan.rejected_at) {
-          allNotifications.push({
-            id: loan.id, type: 'rejected',
-            loan_type: loan.loan_type, loan_amount: loan.loan_amount,
-            loan_terms: loan.loan_terms, rejection_remarks: loan.rejection_remarks,
-            timestamp: loan.rejected_at, pdf_path: loan.pdf_rejected || null
-          });
-        }
-        // ── Closed / Fully Paid notification ──────────────────────────────
-        if (status === 'closed') {
-          allNotifications.push({
-            id: loan.id, type: 'closed',
-            loan_type: loan.loan_type, loan_amount: loan.loan_amount,
-            loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment,
-            timestamp: loan.updated_at || loan.approved_at || loan.created_at,
-            pdf_path: null
-          });
-        }
-      });
-
-      allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-      // Sort: most recent activity first
-      loans.sort((a, b) => {
-        const getDate = l => {
-          const s = (l.status || '').toLowerCase();
-          if (s === 'active'   && l.approved_at) return new Date(l.approved_at);
-          if (s === 'rejected' && l.rejected_at) return new Date(l.rejected_at);
-          if (s === 'approved' && l.approved_at) return new Date(l.approved_at);
-          if (s === 'closed'   && l.updated_at)  return new Date(l.updated_at);
-          return new Date(l.created_at || 0);
-        };
-        return getDate(b) - getDate(a);
-      });
-
-      tbody.innerHTML = '';
-
-      if (loans.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">No loans found. Apply for a loan to get started!</td></tr>';
-        activeLoansCount.textContent  = '0';
-        pendingLoansCount.textContent = '0';
-        closedLoansCount.textContent  = '0';
-        nextPaymentDate.textContent   = '-';
-        notificationMessage.textContent = 'No loans yet. Apply for a loan above!';
-        notificationBadge.style.display = 'none';
-        return;
-      }
-
-      let activeCount = 0, pendingCount = 0, closedCount = 0, approvedCount = 0, rejectedCount = 0;
-      let earliestDueDate = null;
-
-      loans.forEach((loan) => {
-        const status = (loan.status || '').toLowerCase();
-
-        if      (status === 'active')   { activeCount++; }
-        else if (status === 'approved') { approvedCount++; }
-        else if (status === 'pending')  { pendingCount++; }
-        else if (status === 'rejected') { rejectedCount++; }
-        else if (status === 'closed')   { closedCount++; }
-
-        if (status === 'active' && loan.next_payment_due) {
-          const d = new Date(loan.next_payment_due);
-          if (!earliestDueDate || d < earliestDueDate) earliestDueDate = d;
-        }
-
-        // ── Row style & info based on status ──────────────────────────────
-        let displayStatus = loan.status;
-        let statusCell    = '';
-        let nextInfo      = '—';
-        let rowClass      = '';
-
-        if (status === 'active') {
-          statusCell = `<span style="color:#2e7d32;font-weight:bold;">Active</span>`;
-          nextInfo   = loan.next_payment_due
-            ? new Date(loan.next_payment_due).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})
-            : '—';
-        } else if (status === 'approved') {
-          statusCell = `<span style="color:#4CAF50;font-weight:bold;">Approved – Awaiting Claim</span>`;
-          if (loan.approved_at) {
-            const cd = new Date(loan.approved_at);
-            cd.setDate(cd.getDate() + 30);
-            nextInfo = 'Claim by: ' + cd.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
-          } else { nextInfo = 'Awaiting Claim'; }
-        } else if (status === 'pending') {
-          statusCell = `<span style="color:#FF9800;font-weight:bold;">Pending</span>`;
-          nextInfo   = 'Pending Approval';
-        } else if (status === 'rejected') {
-          statusCell = `<span style="color:#f44336;font-weight:bold;">Rejected</span>`;
-          nextInfo   = 'N/A';
-        } else if (status === 'closed') {
-          // ── KEY: Closed / Fully Paid display ──────────────────────────
-          rowClass   = 'row-closed';
-          statusCell = `<span class="status-closed-cell">
-                          <i class="fas fa-check-circle" style="font-size:.8rem;"></i>
-                          Closed / Paid
-                        </span>`;
-          const lamt = parseFloat(loan.loan_amount || 0);
-          nextInfo   = `<span style="color:#0a3b2f;font-weight:600;">
-                          Fully Settled ₱${lamt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-                        </span>`;
-        }
-
-        tbody.insertAdjacentHTML('beforeend', `
-          <tr class="${rowClass}">
-            <td>${loan.id}</td>
-            <td>${loan.loan_type || 'N/A'}</td>
-            <td>₱${parseFloat(loan.loan_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-            <td>₱${parseFloat(loan.monthly_payment||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-            <td>${statusCell}</td>
-            <td>${nextInfo}</td>
-          </tr>
-        `);
-      });
-
-      activeLoansCount.textContent  = activeCount;
-      pendingLoansCount.textContent = pendingCount;
-      closedLoansCount.textContent  = closedCount;
-
-      // ── Apply golden style to Closed stat card when count > 0 ──────────
-      if (closedCount > 0) {
-        statClosedCard.classList.add('stat-closed');
-      } else {
-        statClosedCard.classList.remove('stat-closed');
-      }
-
-      nextPaymentDate.textContent = earliestDueDate
-        ? earliestDueDate.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
-        : '—';
-
-      const notificationCount = allNotifications.length;
-      notificationBadge.textContent   = notificationCount;
-      notificationBadge.style.display = notificationCount > 0 ? 'flex' : 'none';
-
-      // Build notification summary message
-      const closedMsg = closedCount > 0 ? `<strong>${closedCount}</strong> fully paid` : '';
-      if (approvedCount > 0 && activeCount > 0 && rejectedCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${approvedCount}</strong> awaiting claim, <strong>${activeCount}</strong> active, and <strong>${rejectedCount}</strong> rejected loan${rejectedCount>1?'s':''}.`;
-      } else if (approvedCount > 0 && activeCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${approvedCount}</strong> loan${approvedCount>1?'s':''} awaiting claim and <strong>${activeCount}</strong> active.`;
-      } else if (approvedCount > 0) {
-        notificationMessage.innerHTML = `🎉 You have <strong>${approvedCount}</strong> approved loan${approvedCount>1?'s':''}. Please claim within 30 days!`;
-      } else if (activeCount > 0 && closedCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${activeCount}</strong> active loan${activeCount>1?'s':''} and ${closedMsg} 🏆`;
-      } else if (activeCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${activeCount}</strong> active loan${activeCount>1?'s':''}.`;
-      } else if (closedCount > 0 && activeCount === 0 && pendingCount === 0) {
-        notificationMessage.innerHTML = `🏆 Great job! All ${closedMsg} loan${closedCount>1?'s':''} fully settled!`;
-      } else if (rejectedCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${rejectedCount}</strong> rejected loan${rejectedCount>1?'s':''}.`;
-      } else if (pendingCount > 0) {
-        notificationMessage.innerHTML = `You have <strong>${pendingCount}</strong> pending application${pendingCount>1?'s':''}.`;
-      } else {
-        notificationMessage.textContent = 'All loans are settled. Great job!';
-      }
-
-    } catch (error) {
-      console.error('Error loading loans:', error);
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:red;">Error loading loan data. Please refresh the page.</td></tr>';
+    // If loan has an active penalty → use total_balance_with_penalty as outstanding
+    if (phpPenaltyMap.hasOwnProperty(loanId)) {
+        return phpPenaltyMap[loanId].total_balance_with_penalty;
     }
-  }
+    // PHP map (payment-based)
+    if (phpRemainingMap.hasOwnProperty(loanId)) {
+        return parseFloat(phpRemainingMap[loanId]);
+    }
+    if (loan.remaining_balance !== undefined && loan.remaining_balance !== null) {
+        return parseFloat(loan.remaining_balance);
+    }
+    if (loan.total_paid !== undefined && loan.total_paid !== null) {
+        const r = parseFloat(loan.loan_amount || 0) - parseFloat(loan.total_paid);
+        return r > 0 ? r : 0;
+    }
+    return null;
+}
 
-  loadLoans();
+// ── Insert Penalty column header if any loan is overdue ──────────────────────
+function injectPenaltyColumn() {
+    const thead = document.getElementById('loanTableHead');
+    if (!thead) return;
+    // Insert before "Status" (index 5 → after Outstanding at index 4)
+    const statusTh = thead.querySelector('th:nth-child(6)');
+    if (!statusTh) return;
+    const th = document.createElement('th');
+    th.className = 'th-penalty';
+    th.innerHTML = '⚠ Penalty Fee';
+    th.title     = 'Active penalty applied due to overdue payment';
+    thead.insertBefore(th, statusTh);
+}
+
+document.addEventListener("DOMContentLoaded", async function () {
+    // If any penalty exists, add the column header immediately
+    if (hasAnyPenalty) {
+        injectPenaltyColumn();
+        // Update colspan on loading row
+        const loadingTd = document.querySelector('#loanTableBody tr td');
+        if (loadingTd) loadingTd.setAttribute('colspan', '8');
+    }
+
+    const tbody               = document.getElementById('loanTableBody');
+    const activeLoansCount    = document.getElementById('activeLoansCount');
+    const pendingLoansCount   = document.getElementById('pendingLoansCount');
+    const closedLoansCount    = document.getElementById('closedLoansCount');
+    const overdueLoansCount   = document.getElementById('overdueLoansCount');
+    const statClosedCard      = document.getElementById('statClosedCard');
+    const statOverdueCard     = document.getElementById('statOverdueCard');
+    const nextPaymentDate     = document.getElementById('nextPaymentDate');
+    const notificationMessage = document.getElementById('notificationMessage');
+    const notificationBadge   = document.getElementById('notificationBadge');
+
+    async function loadLoans() {
+        try {
+            const response = await fetch('fetch_loan.php', { method: 'GET', credentials: 'include' });
+            if (!response.ok) throw new Error('Network error');
+
+            const loans = await response.json();
+            if (loans.error) {
+                tbody.innerHTML = `<tr><td colspan="${hasAnyPenalty ? 8 : 7}" style="text-align:center;color:red;">${loans.error}</td></tr>`;
+                return;
+            }
+
+            allLoans         = loans;
+            allNotifications = [];
+
+            loans.forEach((loan) => {
+                const status = (loan.status || '').toLowerCase();
+                const loanId = parseInt(loan.id, 10);
+                const hasPenalty = phpPenaltyMap.hasOwnProperty(loanId);
+
+                if (loan.approved_at && (status === 'approved' || status === 'active')) {
+                    allNotifications.push({ id: loan.id, type: 'approved', loan_type: loan.loan_type, loan_amount: loan.loan_amount, loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment, remarks: loan.remarks, timestamp: loan.approved_at, pdf_path: loan.pdf_approved || null });
+                }
+                if (status === 'active' && loan.approved_at) {
+                    allNotifications.push({ id: loan.id, type: 'active', loan_type: loan.loan_type, loan_amount: loan.loan_amount, loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment, next_payment_due: loan.next_payment_due, remarks: loan.remarks, timestamp: loan.approved_at, pdf_path: loan.pdf_active || null });
+                }
+                if (status === 'rejected' && loan.rejected_at) {
+                    allNotifications.push({ id: loan.id, type: 'rejected', loan_type: loan.loan_type, loan_amount: loan.loan_amount, loan_terms: loan.loan_terms, rejection_remarks: loan.rejection_remarks, timestamp: loan.rejected_at, pdf_path: loan.pdf_rejected || null });
+                }
+                if (status === 'closed') {
+                    allNotifications.push({ id: loan.id, type: 'closed', loan_type: loan.loan_type, loan_amount: loan.loan_amount, loan_terms: loan.loan_terms, monthly_payment: loan.monthly_payment, timestamp: loan.updated_at || loan.approved_at || loan.created_at });
+                }
+                // ── Penalty notification ──────────────────────────────────
+                if (hasPenalty && status === 'active') {
+                    const pen = phpPenaltyMap[loanId];
+                    allNotifications.push({
+                        id: loan.id, type: 'overdue',
+                        loan_type: loan.loan_type,
+                        loan_amount: loan.loan_amount,
+                        loan_terms: loan.loan_terms,
+                        penalty_amount: pen.penalty_amount,
+                        total_balance_with_penalty: pen.total_balance_with_penalty,
+                        months_overdue: pen.months_overdue,
+                        penalty_rate: pen.penalty_rate,
+                        next_payment_due: loan.next_payment_due,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+
+            allNotifications.sort((a, b) => {
+                // Overdue notifications always first
+                if (a.type === 'overdue' && b.type !== 'overdue') return -1;
+                if (b.type === 'overdue' && a.type !== 'overdue') return 1;
+                return new Date(b.timestamp) - new Date(a.timestamp);
+            });
+
+            loans.sort((a, b) => {
+                const getDate = l => {
+                    const s = (l.status || '').toLowerCase();
+                    if (s === 'active'   && l.approved_at) return new Date(l.approved_at);
+                    if (s === 'rejected' && l.rejected_at) return new Date(l.rejected_at);
+                    if (s === 'approved' && l.approved_at) return new Date(l.approved_at);
+                    if (s === 'closed'   && l.updated_at)  return new Date(l.updated_at);
+                    return new Date(l.created_at || 0);
+                };
+                return getDate(b) - getDate(a);
+            });
+
+            // Re-check if ANY loan is actually overdue after data loads
+            let anyOverdueInData = hasAnyPenalty;
+            loans.forEach(loan => {
+                const loanId = parseInt(loan.id, 10);
+                if (phpPenaltyMap.hasOwnProperty(loanId)) anyOverdueInData = true;
+            });
+
+            tbody.innerHTML = '';
+            const colSpan = anyOverdueInData ? 8 : 7;
+
+            if (loans.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center;padding:20px;">No loans found.</td></tr>`;
+                ['activeLoansCount','pendingLoansCount','closedLoansCount','overdueLoansCount'].forEach(id => document.getElementById(id).textContent = '0');
+                nextPaymentDate.textContent = '-';
+                notificationMessage.textContent = 'No loans yet. Apply for a loan!';
+                notificationBadge.style.display = 'none';
+                return;
+            }
+
+            let activeCount = 0, pendingCount = 0, closedCount = 0, approvedCount = 0, rejectedCount = 0, overdueCount = 0;
+            let earliestDueDate = null;
+
+            loans.forEach((loan) => {
+                const status  = (loan.status || '').toLowerCase();
+                const loanId  = parseInt(loan.id, 10);
+                const pen     = phpPenaltyMap[loanId];
+                const hasPen  = !!pen;
+
+                if      (status === 'active')   activeCount++;
+                else if (status === 'approved') approvedCount++;
+                else if (status === 'pending')  pendingCount++;
+                else if (status === 'rejected') rejectedCount++;
+                else if (status === 'closed')   closedCount++;
+
+                if (hasPen && status === 'active') overdueCount++;
+
+                if (status === 'active' && loan.next_payment_due) {
+                    const d = new Date(loan.next_payment_due);
+                    if (!earliestDueDate || d < earliestDueDate) earliestDueDate = d;
+                }
+
+                let statusCell = '';
+                let nextInfo   = '—';
+                let rowClass   = '';
+
+                if (status === 'active') {
+                    if (hasPen) {
+                        statusCell = `<span style="color:#c0392b;font-weight:bold;">Active <span class="overdue-row-label">OVERDUE</span></span>`;
+                        rowClass   = 'row-overdue';
+                    } else {
+                        statusCell = `<span style="color:#2e7d32;font-weight:bold;">Active</span>`;
+                    }
+                    nextInfo = loan.next_payment_due
+                        ? new Date(loan.next_payment_due).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})
+                        : '—';
+                } else if (status === 'approved') {
+                    statusCell = `<span style="color:#4CAF50;font-weight:bold;">Approved – Awaiting Claim</span>`;
+                    if (loan.approved_at) {
+                        const cd = new Date(loan.approved_at);
+                        cd.setDate(cd.getDate() + 30);
+                        nextInfo = 'Claim by: ' + cd.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+                    }
+                } else if (status === 'pending') {
+                    statusCell = `<span style="color:#FF9800;font-weight:bold;">Pending</span>`;
+                    nextInfo   = 'Pending Approval';
+                } else if (status === 'rejected') {
+                    statusCell = `<span style="color:#f44336;font-weight:bold;">Rejected</span>`;
+                    nextInfo   = 'N/A';
+                } else if (status === 'closed') {
+                    rowClass   = 'row-closed';
+                    statusCell = `<span class="status-closed-cell"><i class="fas fa-check-circle" style="font-size:.8rem;"></i> Closed / Paid</span>`;
+                    const lamt = parseFloat(loan.loan_amount || 0);
+                    nextInfo   = `<span style="color:#0a3b2f;font-weight:600;">Fully Settled ₱${lamt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+                }
+
+                // ── Outstanding / Balance cell ──────────────────────────────
+                let balanceCell = '';
+                if (status === 'closed') {
+                    balanceCell = `<span class="balance-zero"><i class="fas fa-check" style="font-size:.7rem;"></i> ₱0.00</span>`;
+                } else if (status === 'active' || status === 'approved') {
+                    if (hasPen) {
+                        const origBal = pen.original_balance;
+                        balanceCell = `<span class="balance-active">₱${origBal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+                    } else {
+                        let rem = getRemainingBalance(loan);
+                        if (rem === null) rem = parseFloat(loan.loan_amount || 0);
+                        balanceCell = `<span class="balance-active">₱${rem.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+                    }
+                } else {
+                    balanceCell = `<span class="balance-na">—</span>`;
+                }
+
+                // ── Penalty cell (only rendered when column exists) ──────────
+                let penaltyCell = '';
+                if (anyOverdueInData) {
+                    if (hasPen && (status === 'active')) {
+                        const penAmt   = pen.penalty_amount;
+                        const months   = pen.months_overdue;
+                        const rateStr  = (pen.penalty_rate * 100).toFixed(0) + '%';
+                        const totalDue = pen.total_balance_with_penalty;
+                        penaltyCell = `
+                            <td class="td-penalty-active">
+                                <div class="penalty-amount-cell">
+                                    <span class="penalty-fee-value">+₱${penAmt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                                    <span class="penalty-months-tag">⏰ ${months} mo overdue</span>
+                                    <span class="penalty-rate-note">${rateStr}/mo compound · Total: ₱${totalDue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                                </div>
+                            </td>`;
+                    } else {
+                        penaltyCell = `<td><span class="td-penalty-none">—</span></td>`;
+                    }
+                }
+
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="${rowClass}">
+                        <td>${loan.id}</td>
+                        <td>${loan.loan_type || 'N/A'}</td>
+                        <td>₱${parseFloat(loan.loan_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                        <td>₱${parseFloat(loan.monthly_payment||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                        <td>${balanceCell}</td>
+                        ${penaltyCell}
+                        <td>${statusCell}</td>
+                        <td>${nextInfo}</td>
+                    </tr>
+                `);
+            });
+
+            activeLoansCount.textContent  = activeCount;
+            pendingLoansCount.textContent = pendingCount;
+            closedLoansCount.textContent  = closedCount;
+            overdueLoansCount.textContent = overdueCount;
+
+            if (closedCount > 0)   statClosedCard.classList.add('stat-closed');
+            else                   statClosedCard.classList.remove('stat-closed');
+            if (overdueCount > 0)  statOverdueCard.classList.add('stat-overdue');
+            else                   statOverdueCard.classList.remove('stat-overdue');
+
+            nextPaymentDate.textContent = earliestDueDate
+                ? earliestDueDate.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
+                : '—';
+
+            const notifCount = allNotifications.length;
+            notificationBadge.textContent   = notifCount;
+            notificationBadge.style.display = notifCount > 0 ? 'flex' : 'none';
+
+            // Build summary message
+            if (overdueCount > 0) {
+                notificationMessage.innerHTML = `⚠️ You have <strong style="color:#c0392b;">${overdueCount}</strong> overdue loan${overdueCount>1?'s':''} with active penalties. Please pay immediately!`;
+            } else if (approvedCount > 0 && activeCount > 0) {
+                notificationMessage.innerHTML = `You have <strong>${approvedCount}</strong> awaiting claim and <strong>${activeCount}</strong> active loan${activeCount>1?'s':''}.`;
+            } else if (approvedCount > 0) {
+                notificationMessage.innerHTML = `🎉 <strong>${approvedCount}</strong> loan${approvedCount>1?'s':''} approved. Claim within 30 days!`;
+            } else if (activeCount > 0) {
+                notificationMessage.innerHTML = `You have <strong>${activeCount}</strong> active loan${activeCount>1?'s':''}.`;
+            } else if (closedCount > 0) {
+                notificationMessage.innerHTML = `🏆 All loans fully settled. Great job!`;
+            } else if (pendingCount > 0) {
+                notificationMessage.innerHTML = `<strong>${pendingCount}</strong> application${pendingCount>1?'s':''} pending review.`;
+            } else {
+                notificationMessage.textContent = 'No active loans.';
+            }
+
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr><td colspan="${hasAnyPenalty ? 8 : 7}" style="text-align:center;color:red;">Error loading loans. Please refresh.</td></tr>`;
+        }
+    }
+
+    loadLoans();
 });
 
 function openNotificationModal() {
-  const modal     = document.getElementById('notificationModal');
-  const modalBody = document.getElementById('notificationModalBody');
+    const modal     = document.getElementById('notificationModal');
+    const modalBody = document.getElementById('notificationModalBody');
 
-  if (allNotifications.length === 0) {
-    modalBody.innerHTML = `<div class="notification-empty"><i class="fas fa-bell-slash"></i><p>No notifications yet.</p></div>`;
-  } else {
-    let html = '<div class="notification-header-text"><h3>📢 You have new notifications</h3></div>';
+    if (allNotifications.length === 0) {
+        modalBody.innerHTML = `<div style="text-align:center;padding:3rem;color:#999;"><i class="fas fa-bell-slash" style="font-size:3rem;margin-bottom:1rem;display:block;"></i><p>No notifications yet.</p></div>`;
+    } else {
+        let html = '';
+        allNotifications.forEach((notif) => {
+            const icons  = { approved:'✅', active:'🎉', rejected:'❌', closed:'🏆', overdue:'⚠️' };
+            const labels = { approved:'Loan Approved', active:'Loan Active', rejected:'Loan Rejected', closed:'Loan Fully Paid', overdue:'Overdue – Penalty Applied' };
+            const icon   = icons[notif.type]  || '';
+            const label  = labels[notif.type] || notif.type;
 
-    allNotifications.forEach((notif) => {
-      const icons  = { approved:'✅', active:'🎉', rejected:'❌', closed:'🏆' };
-      const labels = { approved:'Loan Approved – Awaiting Claim', active:'Loan Activated', rejected:'Loan Rejected', closed:'Loan Fully Paid' };
-      const icon   = icons[notif.type]  || '';
-      const label  = labels[notif.type] || notif.type;
+            const ts = notif.timestamp
+                ? new Date(notif.timestamp).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
+                : '—';
 
-      const ts = notif.timestamp
-        ? new Date(notif.timestamp).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})
-        : '—';
+            let importantLine = '';
+            if (notif.type === 'approved' && notif.timestamp) {
+                const cd = new Date(notif.timestamp); cd.setDate(cd.getDate()+30);
+                importantLine = `<p><strong>Claim Deadline:</strong> ${cd.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>`;
+            } else if (notif.type === 'active' && notif.next_payment_due) {
+                importantLine = `<p><strong>Next Payment Due:</strong> ${new Date(notif.next_payment_due).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>`;
+            } else if (notif.type === 'closed') {
+                importantLine = `<p><strong>Status:</strong> <span style="color:#0a3b2f;font-weight:700;">Fully Paid & Closed ✓</span></p>`;
+            } else if (notif.type === 'overdue') {
+                const penAmt   = notif.penalty_amount   ? '₱' + notif.penalty_amount.toLocaleString('en-US',{minimumFractionDigits:2}) : '—';
+                const totalDue = notif.total_balance_with_penalty ? '₱' + notif.total_balance_with_penalty.toLocaleString('en-US',{minimumFractionDigits:2}) : '—';
+                const rateStr  = notif.penalty_rate ? (notif.penalty_rate*100).toFixed(0)+'%' : '5%';
+                importantLine = `
+                    <p><strong>Months Overdue:</strong> <span style="color:#c0392b;font-weight:700;">${notif.months_overdue} month(s)</span></p>
+                    <p><strong>Penalty Rate:</strong> ${rateStr}/month (compounded)</p>
+                    <p><strong>Penalty Charged:</strong> <span style="color:#c0392b;font-weight:700;">${penAmt}</span></p>
+                    <p><strong>Total Balance Due:</strong> <span style="color:#c0392b;font-weight:800;font-size:1.1em;">${totalDue}</span></p>
+                    <p style="color:#c0392b;font-weight:700;margin-top:.5rem;">⚡ Pay immediately to stop further penalty accumulation!</p>
+                `;
+            }
 
-      let importantLine = '';
-      if (notif.type === 'approved' && notif.timestamp) {
-        const cd = new Date(notif.timestamp); cd.setDate(cd.getDate()+30);
-        importantLine = `<p><strong>Claim Deadline:</strong> ${cd.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>`;
-      } else if (notif.type === 'active' && notif.next_payment_due) {
-        importantLine = `<p><strong>Next Payment Due:</strong> ${new Date(notif.next_payment_due).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>`;
-      } else if (notif.type === 'closed') {
-        importantLine = `
-          <p><strong>Status:</strong> <span style="color:#0a3b2f;font-weight:700;">Fully Paid &amp; Closed ✓</span></p>
-          <p><strong>Total Amount:</strong> ₱${parseFloat(notif.loan_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
-        `;
-      }
-
-      const remarksText = notif.type === 'rejected' ? (notif.rejection_remarks||'') : (notif.remarks||'');
-      const pdfButton   = notif.pdf_path
-        ? `<a href="download_pdf.php?file=${encodeURIComponent(notif.pdf_path.replace('uploads/',''))}" class="download-btn" download><i class="fas fa-download"></i> Download PDF</a>`
-        : (notif.type !== 'closed'
-            ? `<button class="generate-pdf-btn" onclick="generatePDF(${notif.id}, '${notif.type}', this)"><i class="fas fa-file-pdf"></i> Generate PDF</button>`
-            : '');
-
-      html += `
-        <div class="notification-item ${notif.type}">
-          <h3>${icon} ${label} <span class="status-badge ${notif.type}">${label}</span></h3>
-          <div class="notification-divider"></div>
-          <p><strong>Loan ID:</strong> ${notif.id}</p>
-          <p><strong>Loan Type:</strong> ${notif.loan_type||'N/A'}</p>
-          <p><strong>Loan Amount:</strong> ₱${parseFloat(notif.loan_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
-          <p><strong>Term:</strong> ${notif.loan_terms||'N/A'}</p>
-          ${notif.monthly_payment ? `<p><strong>Monthly Payment:</strong> ₱${parseFloat(notif.monthly_payment).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</p>` : ''}
-          ${importantLine}
-          ${remarksText ? `<p><strong>Remarks:</strong> ${remarksText}</p>` : ''}
-          ${notif.type === 'approved' ? '<p style="color:#f57c00;font-weight:bold;"><i class="fas fa-exclamation-triangle"></i> Please visit our bank within 30 days to claim your loan!</p>' : ''}
-          <p class="notification-timestamp"><i class="fas fa-clock"></i> ${ts}</p>
-          ${pdfButton ? `<div class="pdf-actions">${pdfButton}</div>` : ''}
-        </div>`;
-    });
-
-    modalBody.innerHTML = html;
-  }
-  modal.style.display = 'block';
+            html += `
+                <div class="notification-item ${notif.type}">
+                    <h3>${icon} ${label} <span class="status-badge ${notif.type}">${label}</span></h3>
+                    <div class="notification-divider"></div>
+                    <p><strong>Loan ID:</strong> ${notif.id}</p>
+                    <p><strong>Loan Type:</strong> ${notif.loan_type || 'N/A'}</p>
+                    <p><strong>Loan Amount:</strong> ₱${parseFloat(notif.loan_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
+                    ${notif.loan_terms ? `<p><strong>Term:</strong> ${notif.loan_terms}</p>` : ''}
+                    ${importantLine}
+                    <p class="notification-timestamp"><i class="fas fa-clock"></i> ${ts}</p>
+                </div>`;
+        });
+        modalBody.innerHTML = html;
+    }
+    modal.style.display = 'block';
 }
 
 function closeNotificationModal() {
-  document.getElementById('notificationModal').style.display = 'none';
+    document.getElementById('notificationModal').style.display = 'none';
 }
-
 window.onclick = function(e) {
-  const modal = document.getElementById('notificationModal');
-  if (e.target === modal) closeNotificationModal();
+    const modal = document.getElementById('notificationModal');
+    if (e.target === modal) closeNotificationModal();
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeNotificationModal(); });
 
 function generatePDF(loanId, type, btn) {
-  var orig = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-  btn.disabled  = true;
-
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', 'generate_pdf.php?loan_id=' + loanId + '&type=' + type, true);
-  xhr.withCredentials = true;
-  xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-  xhr.onload = function() {
-    var raw = xhr.responseText.trim();
-    if (raw.charAt(0) === '<') {
-      var phpErr = raw.match(/(?:Fatal error|Parse error|Warning|Notice)[^<]{0,300}/i);
-      alert('PDF Error:\n' + (phpErr ? phpErr[0].trim() : 'Server error (HTTP ' + xhr.status + ')'));
-      btn.innerHTML = orig; btn.disabled = false;
-      return;
-    }
-    var data;
-    try { data = JSON.parse(raw); } catch(e) { alert('PDF Error: Invalid JSON'); btn.innerHTML = orig; btn.disabled = false; return; }
-    if (!data.success) { alert('PDF Error: ' + (data.error||'Unknown error')); btn.innerHTML = orig; btn.disabled = false; return; }
-
-    var xhr2 = new XMLHttpRequest();
-    xhr2.open('POST','update_loan_pdf.php',true);
-    xhr2.withCredentials = true;
-    xhr2.setRequestHeader('Content-Type','application/json');
-    xhr2.setRequestHeader('X-Requested-With','XMLHttpRequest');
-    xhr2.onload = function() {
-      var url = 'download_pdf.php?file=' + encodeURIComponent(data.filename);
-      btn.outerHTML = '<a href="'+url+'" class="download-btn" download><i class="fas fa-download"></i> Download PDF</a>';
-      allNotifications.forEach(function(n){ if(n.id===loanId && n.type===type) n.pdf_path='uploads/'+data.filename; });
+    var orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    btn.disabled  = true;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'generate_pdf.php?loan_id=' + loanId + '&type=' + type, true);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var data = JSON.parse(xhr.responseText.trim());
+            if (!data.success) { alert('PDF Error: ' + (data.error||'Unknown')); btn.innerHTML = orig; btn.disabled = false; return; }
+            var url = 'download_pdf.php?file=' + encodeURIComponent(data.filename);
+            btn.outerHTML = '<a href="'+url+'" class="download-btn" download><i class="fas fa-download"></i> Download PDF</a>';
+        } catch(e) { alert('PDF Error'); btn.innerHTML = orig; btn.disabled = false; }
     };
-    xhr2.onerror = function() {
-      var url = 'download_pdf.php?file=' + encodeURIComponent(data.filename);
-      btn.outerHTML = '<a href="'+url+'" class="download-btn" download><i class="fas fa-download"></i> Download PDF</a>';
-    };
-    xhr2.send(JSON.stringify({ loan_id: loanId, pdf_path: data.filename, type: type }));
-  };
-  xhr.onerror = function() { alert('PDF Error: Network request failed.'); btn.innerHTML = orig; btn.disabled = false; };
-  xhr.send();
+    xhr.onerror = function() { alert('Network error'); btn.innerHTML = orig; btn.disabled = false; };
+    xhr.send();
 }
 </script>
-
 </body>
 </html>
